@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>期货策略回测台</title>
+<style>
+:root {
+  color-scheme: light;
+  --paper: #EDF0F3;
+  --panel: #FFFFFF;
+  --ink: #1B2532;
+  --muted: #5E6B7A;
+  --rule: #D5DBE2;
+  --up: #CF2E2E;
+  --down: #13844F;
+  --blue: #2453A6;
+  --num: "Bahnschrift", "DIN Alternate", "Roboto Condensed", "Arial Narrow", sans-serif;
+  --sans: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 14px/1.6 var(--sans); }
+.num { font-family: var(--num); font-variant-numeric: tabular-nums; }
+.up { color: var(--up); } .down { color: var(--down); }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; padding: 14px 24px; background: var(--ink); color: #fff; }
+header h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: .04em; }
+header p { margin: 0; color: #AEB8C4; font-size: 13px; }
+header .legend { margin-left: auto; font-size: 12px; color: #AEB8C4; }
+header .legend b { font-weight: 400; padding: 1px 6px; border-radius: 3px; color: #fff; }
+
+.layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 20px; padding: 20px 24px 40px; max-width: 1480px; margin: 0 auto; }
+aside { align-self: start; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; }
+.step { padding: 14px 16px 16px; border-bottom: 1px solid var(--rule); }
+.step:last-child { border-bottom: 0; }
+.step h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 14px; font-weight: 700; }
+.step h2 i { font-style: normal; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); color: #fff; font: 12px/1 var(--num); }
+label.f { display: grid; grid-template-columns: 1fr 104px; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+label.f input, select { width: 100%; padding: 5px 7px; border: 1px solid var(--rule); border-radius: 4px; background: #fff; font-family: var(--num); }
+select { font-family: var(--sans); }
+label.f input:focus, select:focus { border-color: var(--blue); outline: none; box-shadow: 0 0 0 2px rgba(36,83,166,.18); }
+.row { display: flex; gap: 8px; margin-top: 8px; }
+.btn { flex: 1; padding: 6px 10px; border: 1px solid var(--ink); border-radius: 4px; background: #fff; cursor: pointer; font-size: 13px; text-align: center; }
+.btn:hover { background: var(--ink); color: #fff; }
+.btn.solid { background: var(--ink); color: #fff; }
+.btn.solid:hover { background: var(--blue); border-color: var(--blue); }
+.status { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.status.err { color: var(--up); }
+.dates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.dates label { font-size: 12px; color: var(--muted); }
+.dates input { width: 100%; padding: 4px 6px; border: 1px solid var(--rule); border-radius: 4px; font-family: var(--num); }
+
+.strat { display: block; padding: 8px 10px; margin: 6px 0; border: 1px solid var(--rule); border-radius: 4px; cursor: pointer; }
+.strat input { position: absolute; opacity: 0; }
+.strat b { font-size: 13px; }
+.strat em { font-style: normal; font-size: 11px; margin-left: 6px; padding: 0 5px; border-radius: 3px; background: var(--paper); color: var(--muted); }
+.strat span { display: block; font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 2px; }
+.strat:has(input:checked) { border-color: var(--ink); box-shadow: inset 3px 0 0 var(--ink); }
+.strat:has(input:focus-visible) { outline: 2px solid var(--blue); }
+.check { display: flex; align-items: center; gap: 6px; margin: 8px 0 2px; font-size: 13px; }
+.hint { font-size: 12px; color: var(--muted); margin: 2px 0 0; }
+.warn { font-size: 12px; color: var(--up); margin: 4px 0 0; }
+label.f.sel { grid-template-columns: 1fr; gap: 3px; margin-top: 10px; }
+label.f input:disabled { background: #F5F7F9; color: var(--muted); }
+.strat.mine { background: #F6F8FC; }
+.strat.mine em { background: var(--blue); color: #fff; }
+#volCtl.off { opacity: .5; }
+.hint b { color: var(--ink); }
+.cmp { margin: 12px 0 0; padding: 10px 14px; background: #F6F8FC; border-left: 3px solid var(--blue); font-size: 13px; line-height: 1.7; }
+.cmp h3 { margin: 0 0 6px; font-size: 13px; }
+.cmp table { width: auto; min-width: 360px; margin: 4px 0 8px; background: #fff; border: 1px solid var(--rule); }
+.cmp th, .cmp td { text-align: right; padding: 4px 14px; }
+.cmp th:first-child, .cmp td:first-child { text-align: left; font-family: var(--sans); }
+.cmp th { position: static; }
+.cmp p { margin: 0; }
+.cmp p + p { margin-top: 4px; }
+#batchBody tr[data-sym] { cursor: pointer; }
+#batchBody tr[data-sym]:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+
+main { min-width: 0; }
+.verdict { padding: 22px 26px; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; }
+.verdict .when { margin: 0; color: var(--muted); font-size: 13px; }
+.verdict .big { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin: 4px 0 10px; font-family: var(--num); font-size: 52px; line-height: 1.1; letter-spacing: -.01em; }
+.verdict .big .from { color: var(--muted); font-size: 30px; }
+.verdict .big .arrow { color: var(--rule); font-size: 34px; }
+.verdict .big .chg { font-size: 22px; }
+.verdict p.say { margin: 0; max-width: 46em; font-size: 15px; line-height: 1.8; }
+.notes { margin: 12px 0 0; padding: 10px 14px; background: #FFF6E5; border-left: 3px solid #D69E2E; font-size: 13px; line-height: 1.7; }
+.notes p { margin: 0; }
+.notes p + p { margin-top: 4px; }
+
+.metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 1px; margin-top: 16px; background: var(--rule); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.metric { background: var(--panel); padding: 12px 14px; }
+.metric h3 { margin: 0; font-size: 12px; font-weight: 400; color: var(--muted); }
+.metric .v { font-family: var(--num); font-size: 24px; line-height: 1.3; }
+.metric p { margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+
+.panel { margin-top: 16px; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; }
+.panel > h2 { margin: 0 0 8px; font-size: 15px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.panel > h2 small { font-weight: 400; font-size: 12px; color: var(--muted); }
+.keys { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.keys span::before { content: ""; display: inline-block; width: 14px; height: 3px; margin-right: 5px; vertical-align: middle; background: var(--c); }
+.keys span.box::before { height: 10px; opacity: .35; }
+.chartwrap { position: relative; }
+.chartwrap canvas { display: block; width: 100%; }
+.chartwrap .sub { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+#tip { position: absolute; pointer-events: none; display: none; min-width: 150px; padding: 8px 10px; background: rgba(27,37,50,.94); color: #fff; border-radius: 4px; font-size: 12px; line-height: 1.6; z-index: 2; }
+#tip .num { font-size: 13px; }
+
+.tablebox { max-height: 360px; overflow: auto; border: 1px solid var(--rule); border-radius: 4px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { position: sticky; top: 0; background: #F5F7F9; font-weight: 400; color: var(--muted); text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+td { padding: 5px 10px; text-align: right; border-bottom: 1px solid #EEF1F4; white-space: nowrap; font-family: var(--num); font-variant-numeric: tabular-nums; }
+th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
+td.dir { font-family: var(--sans); }
+td.why { font-family: var(--sans); color: var(--muted); }
+tbody tr:hover { background: #F5F7F9; }
+
+.learn details { border-top: 1px solid var(--rule); }
+.learn details:first-of-type { border-top: 0; }
+.learn summary { cursor: pointer; padding: 10px 0; font-weight: 700; font-size: 14px; }
+.learn summary:hover { color: var(--blue); }
+.learn .body { padding: 0 0 12px; max-width: 46em; line-height: 1.85; }
+.learn .body p { margin: 0 0 8px; }
+.learn code { font-family: Consolas, monospace; background: var(--paper); padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+
+@media (max-width: 920px) {
+  .layout { grid-template-columns: 1fr; padding: 12px; }
+  aside { position: static; max-height: none; }
+  .verdict .big { font-size: 38px; }
+  header .legend { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>期货策略回测台</h1>
+  <p>用历史行情检验一套买卖规则，看它过去能不能赚钱，不花一分真钱</p>
+  <div class="legend">配色按国内习惯：<b style="background:var(--up)">红 = 涨 / 赚</b> <b style="background:var(--down)">绿 = 跌 / 亏</b></div>
+</header>
+
+<div class="layout">
+<aside>
+  <section class="step">
+    <h2><i>1</i>选行情</h2>
+    <select id="product" aria-label="品种"></select>
+    <label class="f" style="margin-top:8px">K线周期<select id="tf"><option value="d">日线</option><option value="w">周线</option><option value="m">月线</option></select></label>
+    <div class="row">
+      <button class="btn solid" id="fetchBtn" type="button">联网下载这个品种</button>
+      <label class="btn" for="csvFile">导入 CSV</label>
+      <input type="file" id="csvFile" accept=".csv,.txt" hidden>
+    </div>
+    <p class="status" id="dataStatus"></p>
+    <div class="dates">
+      <div><label for="from">从</label><input type="date" id="from"></div>
+      <div><label for="to">到</label><input type="date" id="to"></div>
+    </div>
+  </section>
+
+  <section class="step">
+    <h2><i>2</i>选策略</h2>
+    <div id="strategies"></div>
+  </section>
+
+  <section class="step">
+    <h2><i>3</i>调参数</h2>
+    <div id="params"></div>
+    <div id="genericCtl">
+    <label class="check"><input type="checkbox" id="allowShort" checked> 允许做空（期货可以先卖后买）</label>
+    <label class="f">止损幅度 %（0 = 不止损）<input type="number" id="stopPct" value="0" min="0" max="50" step="0.5"></label>
+    <p class="hint">止损：开仓后价格反向走了这么多，就当天认亏离场。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <h2><i>4</i>资金与成本</h2>
+    <label class="f">初始资金（元）<input type="number" id="capital" value="100000" min="1000" step="10000"></label>
+    <label class="f">每次交易手数<input type="number" id="lots" value="1" min="1" step="1"></label>
+    <p class="hint" id="lotsHint" hidden>“我的策略”每一笔开几手在第 3 步里设置，这里的手数只用于对照线。</p>
+    <label class="f">合约乘数（每手几吨/几克）<input type="number" id="mult" min="0.01" step="any"></label>
+    <label class="f">最小变动价位（1 跳）<input type="number" id="tick" min="0.001" step="any"></label>
+    <label class="f">滑点（每次成交吃亏几跳）<input type="number" id="slip" value="1" min="0" step="1"></label>
+    <label class="f">手续费（元/手）<input type="number" id="feeLot" min="0" step="any"></label>
+    <label class="f">手续费率（万分之几）<input type="number" id="feeRate" min="0" step="any"></label>
+    <label class="f">保证金比例 %<input type="number" id="margin" min="1" max="100" step="any"></label>
+    <p class="hint">选品种时会自动填入常见数值，实际以你开户的期货公司为准。</p>
+  </section>
+
+  <section class="step">
+    <h2><i>5</i>风控：高波动自动降仓</h2>
+    <label class="check"><input type="checkbox" id="volOn"> 开启（行情剧烈时自动少拿几手）</label>
+    <div id="volCtl">
+      <label class="f">看最近几根K线的波动<input type="number" id="volN" value="20" min="5" max="120" step="1"></label>
+      <label class="f">和过去几根K线的平均比<input type="number" id="volM" value="250" min="20" max="1000" step="10"></label>
+      <label class="f">超过平时几倍算高波动<input type="number" id="volK" value="1.5" min="1" max="5" step="0.1"></label>
+      <label class="f">高波动时仓位上限降到 %<input type="number" id="volKeep" value="50" min="0" max="100" step="10"></label>
+      <label class="f sel">已经拿着的仓位怎么办<select id="volMode">
+        <option value="new">不动，只限制新开仓和加仓</option>
+        <option value="cut">超出上限的部分，下一根K线开盘减掉</option></select></label>
+      <p class="hint" id="volHint"></p>
+    </div>
+  </section>
+</aside>
+
+<main>
+  <section class="verdict" id="verdict" aria-live="polite"></section>
+  <div class="metrics" id="metrics"></div>
+
+  <section class="panel">
+    <h2>行情与持仓 <small>红底色 = 拿着多单，绿底色 = 拿着空单，颜色越深仓位越重；▲ 开多（加仓） ▼ 开空 ○ 平仓</small></h2>
+    <div class="keys" id="keysPrice"></div>
+    <div class="chartwrap" id="chartwrap">
+      <canvas id="cPrice"></canvas>
+      <div id="subWrap" hidden><p class="sub" id="subLabel"></p><div class="keys" id="keysSub"></div><canvas id="cSub"></canvas></div>
+      <p class="sub">账户权益（钱的变化）</p>
+      <div class="keys" id="keysEq"></div>
+      <canvas id="cEq"></canvas>
+      <p class="sub">回撤（离历史最高点亏了多少）</p>
+      <canvas id="cDD"></canvas>
+      <div id="tip"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>每一笔交易 <small id="tradeCount"></small>
+      <button class="btn" id="exportBtn" type="button" style="flex:0 0 auto;margin-left:auto">导出交易明细 CSV</button></h2>
+    <div class="tablebox"><table>
+      <thead><tr><th>序号</th><th>方向</th><th>手数</th><th>开仓日</th><th>开仓价（均价）</th><th>平仓日</th><th>平仓价</th><th>持有天数</th><th>盈亏（元）</th><th>平仓原因</th></tr></thead>
+      <tbody id="tradeBody"></tbody>
+    </table></div>
+  </section>
+
+  <section class="panel">
+    <h2>多品种一起跑 <small>用当前的策略、参数、K线周期、日期范围、资金和滑点，在全部 30 个活跃品种上各跑一遍；合约乘数、手续费、保证金按各品种的常见值</small></h2>
+    <div class="row" style="max-width:300px;margin:0 0 4px"><button class="btn solid" id="batchBtn" type="button">开始批量回测</button></div>
+    <p class="status" id="batchStatus">第一次运行需要逐个下载行情，大约半分钟到一分钟。</p>
+    <div class="tablebox" id="batchBox" hidden style="margin-top:8px"><table>
+      <thead id="batchHead"></thead>
+      <tbody id="batchBody"></tbody>
+    </table></div>
+  </section>
+
+  <section class="panel learn">
+    <h2>新手入门</h2>
+    <details open>
+      <summary>回测到底在做什么</summary>
+      <div class="body">
+        <p>量化交易就是把“什么时候买、什么时候卖”写成明确的规则，让电脑严格执行。回测是第一步：把这套规则放回过去几年的真实行情里，假装当时就照着做，看最后账户会变成多少。</p>
+        <p>这个工具的算法是：每天<b>收盘后</b>根据当天及以前的数据判断该做多、做空还是空仓，<b>第二天开盘</b>按开盘价成交，并且每次成交都扣掉滑点和手续费。这样做是为了避免“偷看未来”——你在盘中不可能知道今天的收盘价。</p>
+        <p>回测赚钱不代表实盘一定赚钱，但回测亏钱的规则，实盘基本没理由会赚。所以它最大的用处是帮你<b>淘汰坏想法</b>。</p>
+      </div>
+    </details>
+    <details>
+      <summary>我的策略：RSI 超卖分批加仓是怎么执行的</summary>
+      <div class="body">
+        <p><b>RSI</b>（相对强弱指标）在 0 到 100 之间，衡量最近一段时间涨的力量占多少。低于 20 通常被认为“跌过头了”，高于 80 是“涨过头了”。这里的算法和通达信、文华等软件的常用公式一样；如果你平时看的 RSI 周期不是 14（很多软件默认是 6、12 或 24），在第 3 步改成一样的。</p>
+        <p><b>开仓和加仓</b>：某根K线收盘时 RSI 低于 20，下一根K线开盘买 1 手。之后每次加仓都要同时满足两条：RSI 比前一根K线更低，并且低于这一笔的界线（第 2 笔 15、第 3 笔 10、第 4 笔还是 10），手数依次是 1、1、2、4，最多一共 8 手。“加仓时机”默认按你说的“隔日”理解：必须紧接着的下一根K线就满足，中间断了这一轮就不再加；也可以改成“之后任何一根K线满足都可以加”。</p>
+        <p><b>平仓</b>：RSI 收盘高于 80，下一根K线开盘全部卖出。</p>
+        <p><b>止损</b>：整个持仓的浮动亏损达到 10% 就全部离场，盘中价格碰到就按止损价成交。10% 的“基准”可以选三种：账户资金（最常见的理解，开第一笔时账户有 10 万，就是亏 1 万止损）、持仓占用的保证金（非常紧，价格只要跌 1% 左右就会触发）、持仓货值（相当于价格比平均成本跌 10%）。止损之后，要等 RSI 先回到 20 以上，才会开始新一轮，避免刚止损又立刻买回。</p>
+        <p><b>需要留意的风险</b>：越跌越买、而且越买越多（1、1、2、4）属于逆势加仓，好处是平均成本低、反弹时赚得快；坏处是遇到一路单边下跌时，亏损会集中在仓位最重的时候。所以请重点看“最大回撤”和“最多连续亏损”，并用“多品种一起跑”看看它是不是只在少数品种上有效。</p>
+      </div>
+    </details>
+    <details>
+      <summary>高波动自动降仓：是什么、怎么判断它有没有用</summary>
+      <div class="body">
+        <p><b>想法很朴素</b>：行情平静时，价格一天走 1%；行情剧烈时，一天走 3%。同样拿 4 手，剧烈时的风险是平静时的 3 倍。所以剧烈的时候少拿几手，让每天账户的起伏大致保持在你受得了的范围里。这是职业交易员最常用的风控手段之一，跟具体用什么策略无关。</p>
+        <p><b>怎么算“剧烈”</b>：每根K线的真实波幅 = 最高价、最低价、前一天收盘价三者之间的最大差距（算上跳空），再除以价格变成百分比。取最近 20 根的平均，就是“现在的波动”；再跟过去 250 根（日线约一年）的平均水平比，超过 1.5 倍就算高波动期。用的是“跟自己的过去比”，所以螺纹、黄金、原油这些波动本来就不一样的品种可以用同一套设置。</p>
+        <p><b>降仓怎么执行</b>：高波动期的仓位上限 = 正常最多手数 × 你设的比例，向下取整。拿“我的策略”来说，正常最多 8 手，降到 50% 就是最多 4 手：1、1、2 照常加，最后那笔 4 手就加不进去了。经典策略如果每次只做 1 手，降到 50% 就是 0 手，等于高波动期间不开新仓。已经拿着的仓位，可以选“不动”，也可以选“超出上限的部分在下一根K线开盘减掉”，减掉的部分在交易明细里单独记一笔，原因写“高波动减仓”。和其他规则一样，都是收盘判断、下一根开盘成交，不偷看未来。</p>
+        <p><b>怎么判断有没有用</b>：开启后，结论下面会出现一张对比表，同一套策略“降仓”和“不降仓”各跑一遍。重点看<b>最大回撤</b>有没有变小，收益少了多少。通常的结果是用少赚换少亏；但对“越跌越买”的逆势策略，最好的买点往往恰恰出现在暴跌、波动最大的时候，降仓可能把好机会也砍掉。所以一定要用“多品种一起跑”看整体，而不是只看一个品种。</p>
+        <p><b>别调过头</b>：20、250、1.5 倍、50% 这几个数都是业内常见的起点，不是最优解。把它们反复调到某个品种上曲线最好看，又会掉进过拟合的坑。</p>
+      </div>
+    </details>
+    <details>
+      <summary>期货的几个基本概念</summary>
+      <div class="body">
+        <p><b>合约乘数</b>：1 手代表多少货。螺纹钢 1 手 = 10 吨，价格每涨 1 元/吨，1 手就赚 10 元。黄金 1 手 = 1000 克，价格涨 1 元/克，1 手赚 1000 元。</p>
+        <p><b>保证金与杠杆</b>：买 1 手螺纹钢（3500 元 × 10 吨 = 3.5 万元的货）只需要押 10% 左右，也就是约 3500 元。这就是杠杆：赚得快，亏得也快。上面指标里的“最高保证金占用”就是在提醒你仓位重不重。</p>
+        <p><b>做多和做空</b>：做多是先买后卖，涨了赚钱；做空是先卖后买，跌了赚钱。股票一般只能做多，期货两边都能做，所以趋势策略在下跌行情里也能赚。</p>
+        <p><b>滑点和手续费</b>：实际下单很难正好成交在你想要的价格，通常会差一两跳，这就是滑点。频繁交易的策略，光是这两项成本就可能把利润吃光——试着把滑点改成 0 和 3 对比一下。</p>
+      </div>
+    </details>
+    <details>
+      <summary>四个经典策略分别在赌什么</summary>
+      <div class="body">
+        <p><b>双均线交叉</b>：均线就是过去 N 天收盘价的平均。短均线反应快、长均线反应慢，短的跑到长的上面，说明最近在涨，就跟着做多。它赌的是“涨了还会继续涨”。缺点是在来回震荡的行情里会反复开平仓、不停小亏。</p>
+        <p><b>通道突破（海龟法则）</b>：上世纪 80 年代著名的“海龟交易员”用的规则。价格突破过去 20 天最高价就买，跌破过去 10 天最低价就走。它也赌趋势延续，胜率通常不高（经常三四成），但靠少数几次大行情赚大钱。</p>
+        <p><b>布林带回归</b>：上下轨是中轨加减几倍标准差，价格大多数时间在轨道里。跌出下轨就赌它会弹回来。这是“逆势”思路，跟前两个正好相反：胜率往往较高，但一旦遇到单边大行情，可能一次亏掉很多次的利润，所以最好配合止损。</p>
+        <p><b>MACD</b>：用两条指数均线的差值（DIF）和它的平滑线（DEA）判断动量方向，本质上也是顺势策略，比双均线反应快一些。</p>
+      </div>
+    </details>
+    <details>
+      <summary>怎样看结果才不会骗自己</summary>
+      <div class="body">
+        <p><b>先看最大回撤，再看收益。</b>年化 30% 但中途亏掉一半，大多数人在亏一半的时候就已经放弃了。问问自己：账户从高点亏掉这么多、持续这么久，我还会继续执行吗？</p>
+        <p><b>警惕“调参数调出来的好成绩”。</b>反复调参数直到曲线很漂亮，叫做过拟合——你找到的是过去的巧合，不是规律。一个简单的检验：把日期分成前后两段，用前一段调好的参数，原封不动跑后一段，看是不是还能赚。参数稍微改一点结果就天差地别，也是危险信号。</p>
+        <p><b>交易次数太少不可信。</b>只交易了五六次，赚钱可能纯靠运气，至少要几十次以上才有参考意义。</p>
+        <p><b>主力连续合约的换月跳空。</b>联网下载的是“主力连续”数据，它把不同月份的合约拼在一起，换月那天可能出现并不存在的价格跳空，会让回测结果有偏差。这是入门阶段可以接受的近似，认真做的时候需要用复权处理过的数据。</p>
+      </div>
+    </details>
+    <details>
+      <summary>数据从哪里来、怎么导入自己的数据</summary>
+      <div class="body">
+        <p>点“联网下载这个品种”会从新浪财经的公开接口获取该品种主力连续合约的日线数据，需要电脑能上网。打开页面时默认显示的是一段<b>模拟行情</b>，只用来熟悉工具，结果没有实际意义。</p>
+        <p>如果下载失败，可以从文华财经、博易大师、快期等行情软件导出日线数据为 CSV，再点“导入 CSV”。文件里需要有日期、开盘、最高、最低、收盘五列，表头写中文或英文都可以，例如 <code>日期,开盘,最高,最低,收盘</code>。导入后记得在第 4 步把合约乘数、手续费等改成对应品种的数值。</p>
+      </div>
+    </details>
+  </section>
+</main>
+</div>
+
+<script>
+// ===== 回测引擎（纯计算，不涉及界面） =====
+const Engine = (() => {
+  // ---------- 指标 ----------
+  function sma(a, n) {
+    const out = new Array(a.length).fill(NaN); let s = 0;
+    for (let i = 0; i < a.length; i++) {
+      s += a[i]; if (i >= n) s -= a[i - n];
+      if (i >= n - 1) out[i] = s / n;
+    }
+    return out;
+  }
+  function ema(a, n) {
+    const out = new Array(a.length).fill(NaN); const k = 2 / (n + 1); let prev;
+    for (let i = 0; i < a.length; i++) { prev = i === 0 ? a[0] : a[i] * k + prev * (1 - k); out[i] = prev; }
+    return out;
+  }
+  function rollStd(a, n) {
+    const out = new Array(a.length).fill(NaN);
+    for (let i = n - 1; i < a.length; i++) {
+      let m = 0; for (let j = i - n + 1; j <= i; j++) m += a[j]; m /= n;
+      let v = 0; for (let j = i - n + 1; j <= i; j++) v += (a[j] - m) ** 2;
+      out[i] = Math.sqrt(v / n);
+    }
+    return out;
+  }
+  // RSI：与通达信 / 同花顺 / 文华常用公式一致  SMA(MAX(C-LC,0),N,1) / SMA(ABS(C-LC),N,1) * 100
+  function rsi(c, n) {
+    const out = new Array(c.length).fill(NaN); let up = 0, all = 0;
+    for (let i = 1; i < c.length; i++) {
+      const ch = c[i] - c[i - 1], u = Math.max(ch, 0), a = Math.abs(ch);
+      if (i === 1) { up = u; all = a; } else { up = (u + (n - 1) * up) / n; all = (a + (n - 1) * all) / n; }
+      if (i >= n) out[i] = all > 0 ? up / all * 100 : 50;
+    }
+    return out;
+  }
+  // 日线合成周线 / 月线（周线以周一为一周开始；K线日期记为该周期最后一个交易日）
+  function resample(rows, tf) {
+    if (tf === 'd') return rows;
+    const key = tf === 'm' ? r => r.d.slice(0, 7) : r => {
+      const t = new Date(r.d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - (t.getUTCDay() + 6) % 7); return t.toISOString().slice(0, 10);
+    };
+    const out = []; let cur = null, k = null;
+    for (const r of rows) {
+      const kk = key(r);
+      if (kk !== k) { if (cur) out.push(cur); cur = { d: r.d, o: r.o, h: r.h, l: r.l, c: r.c }; k = kk; }
+      else { cur.d = r.d; cur.h = Math.max(cur.h, r.h); cur.l = Math.min(cur.l, r.l); cur.c = r.c; }
+    }
+    if (cur) out.push(cur);
+    return out;
+  }
+  // 前 n 根K线（不含当根）的最高 / 最低
+  function prevMax(a, n) {
+    const out = new Array(a.length).fill(NaN);
+    for (let i = n; i < a.length; i++) { let m = -Infinity; for (let j = i - n; j < i; j++) if (a[j] > m) m = a[j]; out[i] = m; }
+    return out;
+  }
+  function prevMin(a, n) {
+    const out = new Array(a.length).fill(NaN);
+    for (let i = n; i < a.length; i++) { let m = Infinity; for (let j = i - n; j < i; j++) if (a[j] < m) m = a[j]; out[i] = m; }
+    return out;
+  }
+
+  // ---------- 波动状态（高波动自动降仓用） ----------
+  // 真实波幅 TR = max(最高-最低, |最高-前收|, |最低-前收|)，除以前收盘价得到百分比
+  // 当前波动 = 最近 n 根 TR% 的平均；平时水平 = 过去 m 根（含当根）“当前波动”的平均，至少要有 min(m, 60) 个值
+  // 当前波动 > 平时水平 × k 就算高波动。全部只用当根及以前的数据，不偷看未来
+  function volRegime(d, n, m, k) {
+    const L = d.length, atrp = new Array(L).fill(NaN), ratio = new Array(L).fill(NaN), hi = new Array(L).fill(false);
+    const tr = d.map((b, i) => i === 0 ? NaN : Math.max(b.h - b.l, Math.abs(b.h - d[i - 1].c), Math.abs(b.l - d[i - 1].c)) / d[i - 1].c);
+    for (let i = n; i < L; i++) { let s = 0; for (let j = i - n + 1; j <= i; j++) s += tr[j]; atrp[i] = s / n; }
+    const need = Math.min(m, 60);
+    for (let i = 0; i < L; i++) {
+      if (!isFinite(atrp[i])) continue;
+      let s = 0, c = 0; for (let j = Math.max(0, i - m + 1); j <= i; j++) if (isFinite(atrp[j])) { s += atrp[j]; c++; }
+      if (c >= need) { ratio[i] = atrp[i] / (s / c); hi[i] = ratio[i] > k; }
+    }
+    return { atrp, ratio, hi };
+  }
+  // 第 i 根K线收盘时的仓位上限：高波动期 = 正常最多手数 × keep（向下取整），否则不限
+  const capAt = (vol, i, normalMax) => vol && vol.hi[i] ? Math.floor(normalMax * vol.keep + 1e-9) : Infinity;
+
+  // ---------- 策略：每根K线收盘后给出“想要的方向” 1多 / -1空 / 0空仓 ----------
+  const strategies = {
+    ma: {
+      name: '双均线交叉',
+      style: '顺势',
+      brief: '短期均线在长期均线上方就做多，下方就做空。',
+      params: [
+        { key: 'fast', label: '短均线天数', def: 10, min: 2, max: 120, step: 1 },
+        { key: 'slow', label: '长均线天数', def: 40, min: 5, max: 250, step: 1 },
+      ],
+      run(d, p, allowShort) {
+        const c = d.map(x => x.c), f = sma(c, p.fast), s = sma(c, p.slow);
+        const t = c.map((_, i) => isNaN(f[i]) || isNaN(s[i]) ? 0 : f[i] > s[i] ? 1 : f[i] < s[i] ? (allowShort ? -1 : 0) : 0);
+        return { target: t, overlays: [
+          { label: `短均线 ${p.fast}日`, data: f, color: '#B7791F' },
+          { label: `长均线 ${p.slow}日`, data: s, color: '#6B4FA0' } ] };
+      },
+    },
+    donchian: {
+      name: '通道突破（海龟法则）',
+      style: '顺势',
+      brief: '价格创出 N 天新高就做多、创新低就做空，反向跌破较短通道就离场。',
+      params: [
+        { key: 'entry', label: '入场通道天数', def: 20, min: 5, max: 120, step: 1 },
+        { key: 'exit', label: '离场通道天数', def: 10, min: 2, max: 60, step: 1 },
+      ],
+      run(d, p, allowShort) {
+        const c = d.map(x => x.c), h = d.map(x => x.h), l = d.map(x => x.l);
+        const hi = prevMax(h, p.entry), lo = prevMin(l, p.entry), xh = prevMax(h, p.exit), xl = prevMin(l, p.exit);
+        const t = new Array(d.length).fill(0); let pos = 0;
+        for (let i = 0; i < d.length; i++) {
+          if (isNaN(hi[i]) || isNaN(xh[i])) { t[i] = 0; continue; }
+          if (pos === 1 && c[i] < xl[i]) pos = 0;
+          if (pos === -1 && c[i] > xh[i]) pos = 0;
+          if (c[i] > hi[i]) pos = 1;
+          else if (c[i] < lo[i] && allowShort) pos = -1;
+          t[i] = pos;
+        }
+        return { target: t, overlays: [
+          { label: `${p.entry}日最高`, data: hi, color: '#B7791F' },
+          { label: `${p.entry}日最低`, data: lo, color: '#6B4FA0' } ] };
+      },
+    },
+    boll: {
+      name: '布林带回归',
+      style: '逆势',
+      brief: '价格跌破下轨视为“跌过头”做多，涨破上轨视为“涨过头”做空，回到中轨就平仓。',
+      params: [
+        { key: 'n', label: '中轨天数', def: 20, min: 5, max: 120, step: 1 },
+        { key: 'k', label: '轨道宽度（几倍标准差）', def: 2, min: 0.5, max: 4, step: 0.1 },
+      ],
+      run(d, p, allowShort) {
+        const c = d.map(x => x.c), mid = sma(c, p.n), sd = rollStd(c, p.n);
+        const up = mid.map((m, i) => m + p.k * sd[i]), dn = mid.map((m, i) => m - p.k * sd[i]);
+        const t = new Array(d.length).fill(0); let pos = 0;
+        for (let i = 0; i < d.length; i++) {
+          if (isNaN(mid[i])) { t[i] = 0; continue; }
+          if (pos === 1 && c[i] >= mid[i]) pos = 0;
+          else if (pos === -1 && c[i] <= mid[i]) pos = 0;
+          else if (pos === 0) {
+            if (c[i] < dn[i]) pos = 1;
+            else if (c[i] > up[i] && allowShort) pos = -1;
+          }
+          t[i] = pos;
+        }
+        return { target: t, overlays: [
+          { label: '上轨', data: up, color: '#B7791F' },
+          { label: '中轨', data: mid, color: '#8A96A3' },
+          { label: '下轨', data: dn, color: '#6B4FA0' } ] };
+      },
+    },
+    macd: {
+      name: 'MACD 金叉死叉',
+      style: '顺势',
+      brief: 'DIF 线在 DEA 线上方（金叉后）做多，下方（死叉后）做空。',
+      params: [
+        { key: 'fast', label: '快线 EMA 天数', def: 12, min: 2, max: 60, step: 1 },
+        { key: 'slow', label: '慢线 EMA 天数', def: 26, min: 5, max: 120, step: 1 },
+        { key: 'signal', label: 'DEA 平滑天数', def: 9, min: 2, max: 60, step: 1 },
+      ],
+      run(d, p, allowShort) {
+        const c = d.map(x => x.c), ef = ema(c, p.fast), es = ema(c, p.slow);
+        const dif = c.map((_, i) => ef[i] - es[i]), dea = ema(dif, p.signal);
+        const warm = p.slow + p.signal;
+        const t = c.map((_, i) => i < warm ? 0 : dif[i] > dea[i] ? 1 : dif[i] < dea[i] ? (allowShort ? -1 : 0) : 0);
+        return { target: t, overlays: [], pane: { label: `MACD（${p.fast}, ${p.slow}, ${p.signal}）`, series: [
+          { label: 'DIF', data: dif, color: '#B7791F' }, { label: 'DEA', data: dea, color: '#6B4FA0' } ], levels: [{ v: 0, label: '0' }] } };
+      },
+    },
+    rsi: {
+      name: '我的策略：RSI 超卖分批加仓',
+      style: '逆势加仓',
+      mine: true,
+      pyramid: true,
+      brief: 'RSI 跌破 20 开 1 手多单；之后 RSI 继续走低、跌破 15 和 10 时依次加 1 手、2 手、4 手；RSI 涨上 80 全部平仓。',
+      params: [
+        { key: 'n', label: 'RSI 周期（几根K线）', def: 14, min: 2, max: 60, step: 1 },
+        { key: 't1', label: '第 1 笔：RSI 低于', def: 20, min: 1, max: 50, step: 1 },
+        { key: 'q1', label: '第 1 笔开几手', def: 1, min: 1, max: 50, step: 1 },
+        { key: 't2', label: '第 2 笔：RSI 低于', def: 15, min: 1, max: 50, step: 1 },
+        { key: 'q2', label: '第 2 笔加几手', def: 1, min: 1, max: 50, step: 1 },
+        { key: 't3', label: '第 3 笔：RSI 低于', def: 10, min: 1, max: 50, step: 1 },
+        { key: 'q3', label: '第 3 笔加几手', def: 2, min: 1, max: 50, step: 1 },
+        { key: 't4', label: '第 4 笔：RSI 低于', def: 10, min: 1, max: 50, step: 1 },
+        { key: 'q4', label: '第 4 笔加几手', def: 4, min: 1, max: 50, step: 1 },
+        { key: 'addMode', label: '加仓时机（每次加仓还要求 RSI 比前一根更低）', type: 'select', def: 'next', options: [
+          ['next', '必须是紧接着的下一根K线，断了就不再加'], ['any', '之后任何一根K线满足条件都可以加'] ] },
+        { key: 'exit', label: 'RSI 高于多少全部平仓', def: 80, min: 50, max: 99, step: 1 },
+        { key: 'stop', label: '止损：亏损达到 %（0 = 不止损）', def: 10, min: 0, max: 100, step: 0.5 },
+        { key: 'stopBase', label: '止损百分比按什么来算', type: 'select', def: 'account', options: [
+          ['account', '账户资金（开第 1 笔时的权益）'], ['margin', '这笔持仓占用的保证金'], ['notional', '持仓货值，等于价格比均价跌了 10%'] ] },
+      ],
+      run(d, p) {
+        const r = rsi(d.map(x => x.c), p.n);
+        return { overlays: [], rsi: r, pane: { label: `RSI（${p.n}）`, lo: 0, hi: 100, series: [{ label: 'RSI', data: r, color: '#6B4FA0' }],
+          levels: [{ v: p.exit, label: `平仓 ${p.exit}` }, { v: p.t1, label: `${p.t1}` }, { v: p.t2, label: `${p.t2}` }, { v: p.t3, label: `${p.t3}` }] } };
+      },
+    },
+  };
+
+  // ---------- 分批加仓回测（我的策略） ----------
+  // 第 i 根K线收盘时判断，第 i+1 根开盘成交；止损在盘中按最低价触发，以止损价（跳空则开盘价）成交
+  function backtestPyramid(data, rsiArr, o, p) {
+    const { capital, mult, tick, slipTicks, feePerLot, feeRate, marginRate, startIdx, endIdx } = o;
+    const slip = tick * slipTicks, thr = [p.t1, p.t2, p.t3, p.t4], qty = [p.q1, p.q2, p.q3, p.q4];
+    const fee = (px, n) => n * feePerLot + px * mult * n * feeRate;
+    const vol = o.vol || null, normalMax = qty[0] + qty[1] + qty[2] + qty[3];
+    let cash = capital, pos = 0, avg = 0, layer = 0, lastExec = -1, blocked = false, fees = 0, slipCost = 0;
+    let bust = false, bustIdx = -1, skipped = 0, cycle = null, baseEq = 0, pending = null;
+    let volSkipped = 0, volTrimmed = 0, volCuts = 0, volWait = false;
+    const equity = [], posArr = [], marginUse = [], trades = [], fills = [];
+
+    const closeAll = (px, i, reason, slipped = true) => {
+      const f = fee(px, pos); cash -= f; fees += f; if (slipped) slipCost += slip * pos * mult;
+      const gross = (px - avg) * pos * mult; cash += gross; cycle.fee += f;
+      trades.push({ dir: 1, entryIdx: cycle.start, exitIdx: i, entry: avg, exit: px, lots: pos, layers: layer, pnl: gross - cycle.fee, fee: cycle.fee, reason });
+      fills.push({ i, px, type: 'close' });
+      pos = 0; avg = 0; layer = 0; cycle = null;
+    };
+    // 高波动减仓：只平掉 k 手，这一轮已付的开仓手续费按手数比例分摊给平掉的部分
+    const closePart = (px, i, k, reason) => {
+      const f = fee(px, k); cash -= f; fees += f; slipCost += slip * k * mult;
+      const gross = (px - avg) * k * mult; cash += gross;
+      const share = cycle.fee * k / pos; cycle.fee -= share;
+      trades.push({ dir: 1, entryIdx: cycle.start, exitIdx: i, entry: avg, exit: px, lots: k, layers: layer, pnl: gross - share - f, fee: share + f, reason });
+      fills.push({ i, px, type: 'reduce' });
+      pos -= k;
+    };
+
+    for (let i = startIdx; i <= endIdx; i++) {
+      const b = data[i];
+      if (!bust && pending) {
+        if (pending.type === 'exit' && pos > 0) closeAll(b.o - slip, i, 'RSI 超买');
+        else if (pending.type === 'reduce' && pos > 0) {
+          volCuts++;
+          if (pending.lots >= pos) closeAll(b.o - slip, i, '高波动减仓'); else closePart(b.o - slip, i, pending.lots, '高波动减仓');
+        }
+        else if (pending.type === 'add') {
+          const n = pending.lots, px = b.o + slip;
+          const eqOpen = cash + (pos ? (b.o - avg) * pos * mult : 0);
+          if ((pos + n) * b.o * mult * marginRate > eqOpen) skipped++;   // 保证金不够，下单不成交
+          else {
+            if (pos === 0) { cycle = { start: i, fee: 0 }; baseEq = eqOpen; }
+            const f = fee(px, n); cash -= f; fees += f; slipCost += slip * n * mult; cycle.fee += f;
+            avg = (avg * pos + px * n) / (pos + n); pos += n; layer++; lastExec = i;
+            fills.push({ i, px, type: 'openLong', lots: n });
+          }
+        }
+      }
+      pending = null;
+      if (!bust && pos > 0 && p.stop > 0) {
+        const s = p.stop / 100;
+        const L = p.stopBase === 'account' ? s * baseEq : p.stopBase === 'margin' ? s * pos * avg * mult * marginRate : s * pos * avg * mult;
+        const sp = avg - L / (pos * mult);
+        if (b.l <= sp) { closeAll(Math.min(b.o, sp) - slip, i, '止损'); blocked = true; }
+      }
+      if (i === endIdx && pos > 0) closeAll(b.c, i, '回测结束', false);
+      let eq = cash + (pos ? (b.c - avg) * pos * mult : 0);
+      if (!bust && eq <= 0) { if (pos) closeAll(b.c, i, '爆仓', false); eq = cash; bust = true; bustIdx = i; }
+      equity.push(eq); posArr.push(pos);
+      marginUse.push(pos && eq > 0 ? pos * b.c * mult * marginRate / eq : 0);
+
+      if (bust || i === endIdx) continue;
+      const r = rsiArr[i], rp = rsiArr[i - 1];
+      if (!isFinite(r)) continue;
+      if (blocked && r >= thr[0]) blocked = false;           // 止损后，等 RSI 回到首笔线以上再重新开始
+      const cap = capAt(vol, i, normalMax);
+      // 想开/加的手数先按高波动上限裁剪；裁到 0 就和“保证金不够”一样，这一笔不做
+      const sized = want => {
+        const k = Math.min(want, Math.max(cap - pos, 0));
+        if (k <= 0) { if (!volWait) volSkipped++; volWait = true; return null; }
+        if (k < want) volTrimmed++;
+        volWait = false; return { type: 'add', lots: k };
+      };
+      if (pos > 0 && r > p.exit) pending = { type: 'exit' };
+      else if (pos > cap && vol.mode === 'cut') pending = { type: 'reduce', lots: pos - cap };
+      else if (pos === 0) { if (!blocked && r < thr[0]) pending = sized(qty[0]); else volWait = false; }
+      else if (layer < 4 && r < thr[layer] && isFinite(rp) && r < rp && (p.addMode === 'any' || lastExec === i))
+        pending = sized(qty[layer]);
+      else volWait = false;
+    }
+    const p0 = data[startIdx].o, bench = [];
+    for (let i = startIdx; i <= endIdx; i++) bench.push(capital + (data[i].c - p0) * o.lots * mult);
+    return { equity, bench, posArr, marginUse, trades, fills, fees, slipCost, bust, bustIdx, skipped, volSkipped, volTrimmed, volCuts, startIdx, endIdx };
+  }
+
+  // ---------- 回测 ----------
+  // 规则：第 i 天收盘算出信号，第 i+1 天开盘成交（避免“偷看未来”）
+  function backtest(data, target, o) {
+    const { capital, lots, mult, tick, slipTicks, feePerLot, feeRate, marginRate, stopPct, startIdx, endIdx } = o;
+    const slip = tick * slipTicks, vol = o.vol || null;
+    const fee = (px, k) => k * feePerLot + px * mult * k * feeRate;
+    // pos = 方向（1 多 / -1 空 / 0 空仓），held = 手里拿着几手（高波动期可能少于设定的手数）
+    let cash = capital, pos = 0, held = 0, entry = 0, entryIdx = -1, openFee = 0, blocked = 0, fees = 0, slipCost = 0, bust = false, bustIdx = -1;
+    let volSkipped = 0, volTrimmed = 0, volCuts = 0, volWait = false;
+    const equity = [], posArr = [], marginUse = [], trades = [], fills = [];
+
+    const openPos = (dir, px, i, k) => {
+      const f = fee(px, k); cash -= f; fees += f; slipCost += slip * k * mult;
+      pos = dir; held = k; entry = px; entryIdx = i; openFee = f;
+      fills.push({ i, px, type: dir > 0 ? 'openLong' : 'openShort', lots: k });
+    };
+    // k < held 时只平一部分（高波动减仓），开仓手续费按手数比例分摊
+    const closePos = (px, i, reason, slipped = true, k = held) => {
+      const f = fee(px, k); cash -= f; fees += f;
+      if (slipped) slipCost += slip * k * mult;
+      const gross = (px - entry) * pos * k * mult;
+      cash += gross;
+      const share = k === held ? openFee : openFee * k / held; openFee -= share;
+      trades.push({ dir: pos, entryIdx, exitIdx: i, entry, exit: px, lots: k, pnl: gross - share - f, fee: share + f, reason });
+      fills.push({ i, px, type: k < held ? 'reduce' : 'close' });
+      held -= k; if (held === 0) pos = 0;
+    };
+
+    for (let i = startIdx; i <= endIdx; i++) {
+      const b = data[i];
+      if (!bust && i > startIdx) {
+        let want = target[i - 1];
+        if (blocked !== 0) { if (want === blocked) want = 0; else blocked = 0; }
+        const cap = capAt(vol, i - 1, lots), size = Math.min(lots, cap);   // 上一根收盘时决定的仓位上限
+        if (want === 0) volWait = false;
+        if (want !== pos) {
+          if (pos !== 0) closePos(b.o - pos * slip, i, '信号');
+          if (want !== 0) {
+            if (size > 0) { openPos(want, b.o + want * slip, i, size); if (size < lots) volTrimmed++; volWait = false; }
+            else { if (!volWait) volSkipped++; volWait = true; }
+          }
+        } else if (pos !== 0 && held > cap && vol.mode === 'cut') {
+          volCuts++; closePos(b.o - pos * slip, i, '高波动减仓', true, held - cap);
+        }
+      }
+      if (!bust && pos !== 0 && stopPct > 0) {
+        if (pos > 0 && b.l <= entry * (1 - stopPct)) { closePos(Math.min(b.o, entry * (1 - stopPct)) - slip, i, '止损'); blocked = 1; }
+        else if (pos < 0 && b.h >= entry * (1 + stopPct)) { closePos(Math.max(b.o, entry * (1 + stopPct)) + slip, i, '止损'); blocked = -1; }
+      }
+      if (i === endIdx && pos !== 0) closePos(b.c, i, '回测结束', false);
+      let eq = cash + (pos !== 0 ? (b.c - entry) * pos * held * mult : 0);
+      if (!bust && eq <= 0) {
+        if (pos !== 0) closePos(b.c, i, '爆仓', false);
+        eq = cash; bust = true; bustIdx = i;
+      }
+      equity.push(eq); posArr.push(pos * held);
+      marginUse.push(pos !== 0 && eq > 0 ? (held * b.c * mult * marginRate) / eq : 0);
+    }
+
+    // 对照组：一直持有同样手数的多单（不计费用）
+    const p0 = data[startIdx].o;
+    const bench = [];
+    for (let i = startIdx; i <= endIdx; i++) bench.push(capital + (data[i].c - p0) * lots * mult);
+
+    return { equity, bench, posArr, marginUse, trades, fills, fees, slipCost, bust, bustIdx, volSkipped, volTrimmed, volCuts, startIdx, endIdx };
+  }
+
+  // ---------- 绩效指标 ----------
+  function stats(data, r, capital, ppy = 252) {
+    const eq = r.equity, n = eq.length;
+    const final = eq[n - 1];
+    const d0 = new Date(data[r.startIdx].d), d1 = new Date(data[r.endIdx].d);
+    const years = Math.max((d1 - d0) / 86400000 / 365.25, 1 / 365);
+    const totalRet = final / capital - 1;
+    const cagr = final > 0 ? Math.pow(final / capital, 1 / years) - 1 : -1;
+    let peak = capital, peakI = 0, maxDD = 0, ddPeakI = 0, ddTroughI = 0;
+    const dd = [];
+    for (let i = 0; i < n; i++) {
+      if (eq[i] > peak) { peak = eq[i]; peakI = i; }
+      const x = eq[i] / peak - 1; dd.push(x);
+      if (x < maxDD) { maxDD = x; ddPeakI = peakI; ddTroughI = i; }
+    }
+    const rets = [];
+    let prev = capital;
+    for (let i = 0; i < n; i++) { rets.push(prev > 0 ? eq[i] / prev - 1 : 0); prev = eq[i]; }
+    const mean = rets.reduce((a, b) => a + b, 0) / n;
+    const sd = Math.sqrt(rets.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(n - 1, 1));
+    const sharpe = sd > 0 ? (mean / sd) * Math.sqrt(ppy) : 0;
+    const t = r.trades, wins = t.filter(x => x.pnl > 0), losses = t.filter(x => x.pnl <= 0);
+    const sumW = wins.reduce((a, x) => a + x.pnl, 0), sumL = losses.reduce((a, x) => a + x.pnl, 0);
+    let streak = 0, maxStreak = 0;
+    t.forEach(x => { if (x.pnl <= 0) { streak++; maxStreak = Math.max(maxStreak, streak); } else streak = 0; });
+    const benchFinal = r.bench[n - 1];
+    return {
+      final, totalRet, cagr, maxDD, ddPeakI, ddTroughI, dd, sharpe, years,
+      nTrades: t.length,
+      winRate: t.length ? wins.length / t.length : 0,
+      avgWin: wins.length ? sumW / wins.length : 0,
+      avgLoss: losses.length ? sumL / losses.length : 0,
+      profitFactor: sumL < 0 ? sumW / -sumL : (sumW > 0 ? Infinity : 0),
+      maxLoseStreak: maxStreak,
+      fees: r.fees, slipCost: r.slipCost,
+      exposure: r.posArr.filter(p => p !== 0).length / n,
+      maxMargin: Math.max(0, ...r.marginUse),
+      benchFinal, benchRet: benchFinal / capital - 1,
+    };
+  }
+
+  return { strategies, backtest, backtestPyramid, stats, resample, rsi, sma, ema, rollStd, volRegime };
+})();
+if (typeof module !== 'undefined') module.exports = Engine;
+
+</script>
+<script>
+// ===== 品种参数、模拟数据、联网取数、CSV 导入 =====
+const Data = (() => {
+  // 合约参数为常见近似值，实际以交易所和期货公司为准（界面里都可以改）
+  const products = [
+    { group: '黑色系', items: [
+      { sym: 'RB0', name: '螺纹钢', mult: 10, tick: 1, feeLot: 0, feeRate: 1, margin: 10 },
+      { sym: 'HC0', name: '热轧卷板', mult: 10, tick: 1, feeLot: 0, feeRate: 1, margin: 10 },
+      { sym: 'I0', name: '铁矿石', mult: 100, tick: 0.5, feeLot: 0, feeRate: 1, margin: 13 },
+      { sym: 'FG0', name: '玻璃', mult: 20, tick: 1, feeLot: 6, feeRate: 0, margin: 12 },
+      { sym: 'J0', name: '焦炭', mult: 100, tick: 0.5, feeLot: 0, feeRate: 1, margin: 15 },
+      { sym: 'JM0', name: '焦煤', mult: 60, tick: 0.5, feeLot: 0, feeRate: 1, margin: 15 },
+    ]},
+    { group: '有色与贵金属', items: [
+      { sym: 'CU0', name: '沪铜', mult: 5, tick: 10, feeLot: 0, feeRate: 0.5, margin: 10 },
+      { sym: 'AL0', name: '沪铝', mult: 5, tick: 5, feeLot: 3, feeRate: 0, margin: 10 },
+      { sym: 'AU0', name: '黄金', mult: 1000, tick: 0.02, feeLot: 10, feeRate: 0, margin: 12 },
+      { sym: 'AG0', name: '白银', mult: 15, tick: 1, feeLot: 0, feeRate: 0.5, margin: 12 },
+      { sym: 'ZN0', name: '沪锌', mult: 5, tick: 5, feeLot: 3, feeRate: 0, margin: 10 },
+      { sym: 'NI0', name: '沪镍', mult: 1, tick: 10, feeLot: 3, feeRate: 0, margin: 12 },
+    ]},
+    { group: '能源化工', items: [
+      { sym: 'SC0', name: '原油', mult: 1000, tick: 0.1, feeLot: 20, feeRate: 0, margin: 12 },
+      { sym: 'MA0', name: '甲醇', mult: 10, tick: 1, feeLot: 2, feeRate: 0, margin: 9 },
+      { sym: 'TA0', name: 'PTA', mult: 5, tick: 2, feeLot: 3, feeRate: 0, margin: 8 },
+      { sym: 'FU0', name: '燃料油', mult: 10, tick: 1, feeLot: 0, feeRate: 0.5, margin: 10 },
+      { sym: 'BU0', name: '沥青', mult: 10, tick: 1, feeLot: 0, feeRate: 1, margin: 10 },
+      { sym: 'RU0', name: '橡胶', mult: 10, tick: 5, feeLot: 3, feeRate: 0, margin: 10 },
+      { sym: 'SA0', name: '纯碱', mult: 20, tick: 1, feeLot: 3.5, feeRate: 0, margin: 12 },
+      { sym: 'V0', name: 'PVC', mult: 5, tick: 1, feeLot: 1, feeRate: 0, margin: 8 },
+      { sym: 'PP0', name: '聚丙烯', mult: 5, tick: 1, feeLot: 1, feeRate: 0, margin: 8 },
+      { sym: 'EG0', name: '乙二醇', mult: 10, tick: 1, feeLot: 3, feeRate: 0, margin: 8 },
+    ]},
+    { group: '农产品', items: [
+      { sym: 'M0', name: '豆粕', mult: 10, tick: 1, feeLot: 1.5, feeRate: 0, margin: 8 },
+      { sym: 'RM0', name: '菜粕', mult: 10, tick: 1, feeLot: 1.5, feeRate: 0, margin: 9 },
+      { sym: 'Y0', name: '豆油', mult: 10, tick: 2, feeLot: 2.5, feeRate: 0, margin: 8 },
+      { sym: 'P0', name: '棕榈油', mult: 10, tick: 2, feeLot: 2.5, feeRate: 0, margin: 10 },
+      { sym: 'CF0', name: '棉花', mult: 5, tick: 5, feeLot: 4.3, feeRate: 0, margin: 8 },
+      { sym: 'SR0', name: '白糖', mult: 10, tick: 1, feeLot: 3, feeRate: 0, margin: 8 },
+      { sym: 'C0', name: '玉米', mult: 10, tick: 1, feeLot: 1.2, feeRate: 0, margin: 8 },
+      { sym: 'LH0', name: '生猪', mult: 16, tick: 5, feeLot: 0, feeRate: 2, margin: 12 },
+    ]},
+  ];
+  const demo = { sym: 'DEMO', name: '演示行情（模拟数据）', mult: 10, tick: 1, feeLot: 0, feeRate: 1, margin: 10 };
+  const custom = { sym: 'CSV', name: '我导入的 CSV 数据', mult: 10, tick: 1, feeLot: 0, feeRate: 1, margin: 10 };
+
+  // 模拟一段“像螺纹钢”的日线：有涨有跌、有趋势也有震荡。固定随机种子，每次打开都一样。
+  function makeDemo() {
+    let seed = 20150105;
+    const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const gauss = () => { let u = 0, v = 0; while (!u) u = rnd(); while (!v) v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const out = []; let p = 3400, drift = 0, left = 0, vol = 0.014;
+    const day = new Date(Date.UTC(2015, 0, 5)), end = new Date(Date.UTC(2026, 9, 30));
+    while (day <= end) {
+      const wd = day.getUTCDay();
+      if (wd !== 0 && wd !== 6) {
+        if (left <= 0) { const r = rnd(); drift = r < 0.35 ? 0.0012 + rnd() * 0.0015 : r < 0.7 ? -(0.0012 + rnd() * 0.0015) : 0; vol = 0.009 + rnd() * 0.011; left = 40 + Math.floor(rnd() * 160); }
+        left--;
+        const pull = Math.log(3600 / p) * 0.006;
+        const o = p * (1 + gauss() * vol * 0.3);
+        const c = o * (1 + drift + pull + gauss() * vol);
+        const h = Math.max(o, c) * (1 + Math.abs(gauss()) * vol * 0.5);
+        const l = Math.min(o, c) * (1 - Math.abs(gauss()) * vol * 0.5);
+        const r1 = x => Math.round(x);
+        out.push({ d: day.toISOString().slice(0, 10), o: r1(o), h: r1(Math.max(h, o, c)), l: r1(Math.min(l, o, c)), c: r1(c) });
+        p = c;
+      }
+      day.setUTCDate(day.getUTCDate() + 1);
+    }
+    return out;
+  }
+
+  // 新浪财经期货日线接口（JSONP 方式，浏览器直接加载，无需安装任何软件）
+  function loadSina(sym) {
+    return new Promise((resolve, reject) => {
+      const now = new Date();
+      const stamp = `${now.getFullYear()}_${now.getMonth() + 1}_${now.getDate()}_${now.getHours()}`;
+      const v = `_${sym}${stamp}`;
+      const s = document.createElement('script');
+      const cleanup = () => { clearTimeout(timer); s.remove(); try { delete window[v]; } catch (e) { window[v] = undefined; } };
+      const timer = setTimeout(() => { cleanup(); reject(new Error('超时')); }, 15000);
+      s.onload = () => {
+        const raw = window[v]; cleanup();
+        if (!raw || !raw.length) return reject(new Error('返回为空'));
+        const rows = raw.map(r => Array.isArray(r)
+          ? { d: String(r[0]).slice(0, 10), o: +r[1], h: +r[2], l: +r[3], c: +r[4] }
+          : { d: String(r.d).slice(0, 10), o: +r.o, h: +r.h, l: +r.l, c: +r.c });
+        resolve(clean(rows));
+      };
+      s.onerror = () => { cleanup(); reject(new Error('网络不通')); };
+      s.src = `https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var%20${v}=/InnerFuturesNewService.getDailyKLine?symbol=${sym}&_=${stamp}`;
+      document.head.appendChild(s);
+    });
+  }
+
+  function normDate(x) {
+    x = String(x).trim().replace(/["']/g, '');
+    let m = x.match(/^(\d{4})[-\/.年](\d{1,2})[-\/.月](\d{1,2})/);
+    if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+    m = x.match(/^(\d{4})(\d{2})(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    return null;
+  }
+
+  function clean(rows) {
+    const seen = new Map();
+    rows.forEach(r => {
+      if (!r.d || ![r.o, r.h, r.l, r.c].every(v => isFinite(v) && v > 0)) return;
+      seen.set(r.d, { d: r.d, o: r.o, h: Math.max(r.h, r.o, r.c), l: Math.min(r.l, r.o, r.c), c: r.c });
+    });
+    return [...seen.values()].sort((a, b) => a.d < b.d ? -1 : 1);
+  }
+
+  // CSV：需要 日期、开盘、最高、最低、收盘 五列（中英文表头都认；没有表头就按这个顺序读）
+  function parseCSV(text) {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (!lines.length) throw new Error('文件是空的');
+    const delim = [',', '\t', ';'].map(d => [d, lines[0].split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
+    const split = l => l.split(delim).map(s => s.trim().replace(/^"|"$/g, ''));
+    const pats = { d: /date|日期|时间|time/i, o: /open|开盘|开/i, h: /high|最高|高/i, l: /low|最低|低/i, c: /close|收盘|收/i };
+    let idx = null, start = 0;
+    for (let k = 0; k < Math.min(lines.length, 10); k++) {
+      const cells = split(lines[k]);
+      if (normDate(cells[0]) || cells.some(c => normDate(c))) break;
+      const map = {};
+      for (const key of ['d', 'o', 'h', 'l', 'c']) {
+        const j = cells.findIndex((c, jj) => pats[key].test(c) && !Object.values(map).includes(jj));
+        if (j >= 0) map[key] = j;
+      }
+      if (Object.keys(map).length === 5) { idx = map; start = k + 1; break; }
+    }
+    if (!idx) idx = { d: 0, o: 1, h: 2, l: 3, c: 4 };
+    const rows = [];
+    for (let k = start; k < lines.length; k++) {
+      const c = split(lines[k]); const d = normDate(c[idx.d]);
+      if (!d) continue;
+      rows.push({ d, o: parseFloat(c[idx.o]), h: parseFloat(c[idx.h]), l: parseFloat(c[idx.l]), c: parseFloat(c[idx.c]) });
+    }
+    const out = clean(rows);
+    if (out.length < 60) throw new Error(`只读到 ${out.length} 行有效数据，至少需要 60 行`);
+    return out;
+  }
+
+  return { products, demo, custom, makeDemo, loadSina, parseCSV };
+})();
+if (typeof module !== 'undefined') module.exports = Data;
+
+</script>
+<script>
+// ===== 界面 =====
+(() => {
+  const $ = id => document.getElementById(id);
+  const S = { raw: [], data: [], label: '', sym: 'DEMO', tf: 'd', cache: {}, csv: null, strat: 'rsi', pv: {}, res: null, hover: -1 };
+  const TF = { d: { name: '日线', unit: '天', ppy: 252 }, w: { name: '周线', unit: '周', ppy: 52 }, m: { name: '月线', unit: '月', ppy: 12 } };
+  const C = { up: '#CF2E2E', down: '#13844F', ink: '#1B2532', muted: '#5E6B7A', rule: '#D5DBE2', blue: '#2453A6', bench: '#9AA5B1' };
+
+  // ---------- 格式 ----------
+  const wan = v => Math.abs(v) >= 1e4 ? (v / 1e4).toFixed(2) + ' 万' : Math.round(v).toLocaleString('zh-CN') + ' 元';
+  const pct = (v, sign = true) => !isFinite(v) ? '—' : (sign && v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+  const cls = v => v > 0 ? 'up' : v < 0 ? 'down' : '';
+  const fmtP = v => Math.abs(v) >= 1000 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
+  const days = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // ---------- 第 1 步：行情 ----------
+  const allSpecs = [Data.demo, Data.custom, ...Data.products.flatMap(g => g.items)];
+  const specOf = sym => allSpecs.find(p => p.sym === sym);
+  function buildProducts() {
+    const sel = $('product');
+    const opt = (parent, p) => { const o = document.createElement('option'); o.value = p.sym; o.textContent = p.sym === 'DEMO' || p.sym === 'CSV' ? p.name : `${p.name}  ${p.sym}`; parent.appendChild(o); };
+    opt(sel, Data.demo);
+    Data.products.forEach(g => { const og = document.createElement('optgroup'); og.label = g.group; g.items.forEach(p => opt(og, p)); sel.appendChild(og); });
+    const og = document.createElement('optgroup'); og.label = '自己的数据'; opt(og, Data.custom); sel.appendChild(og);
+  }
+  function applySpec(p) { $('mult').value = p.mult; $('tick').value = p.tick; $('feeLot').value = p.feeLot; $('feeRate').value = p.feeRate; $('margin').value = p.margin; }
+  function status(msg, err) { const el = $('dataStatus'); el.textContent = msg; el.classList.toggle('err', !!err); }
+  function setData(rows, label) {
+    S.raw = rows; S.label = label;
+    const a = rows[0].d, b = rows[rows.length - 1].d;
+    ['from', 'to'].forEach(id => { $(id).min = a; $(id).max = b; });
+    $('from').value = a; $('to').value = b;
+    applyTf();
+  }
+  function applyTf() { S.tf = $('tf').value; S.data = Engine.resample(S.raw, S.tf); schedule(); }
+  function onProduct() {
+    const sym = $('product').value, spec = specOf(sym);
+    S.sym = sym;
+    $('fetchBtn').hidden = sym === 'DEMO' || sym === 'CSV';
+    if (sym === 'CSV') {
+      if (S.csv) { setData(S.csv.rows, S.csv.label); status(`已导入 ${S.csv.name}，共 ${S.csv.rows.length} 个交易日。`); }
+      else { status('点“导入 CSV”选择文件。'); $('csvFile').click(); }
+      return;
+    }
+    applySpec(spec);
+    if (sym === 'DEMO') {
+      S.cache.DEMO = S.cache.DEMO || Data.makeDemo();
+      setData(S.cache.DEMO, '模拟行情');
+      status(`模拟数据，共 ${S.cache.DEMO.length} 个交易日，只用来熟悉工具。选一个真实品种会自动联网下载。`);
+    } else if (S.cache[sym]) {
+      showLoaded(sym);
+    } else fetchSym(sym);
+  }
+  function showLoaded(sym) {
+    const rows = S.cache[sym], spec = specOf(sym);
+    setData(rows, spec.name);
+    status(`已下载${spec.name}主力连续日线 ${rows.length} 个交易日（${rows[0].d} 至 ${rows[rows.length - 1].d}）。`);
+  }
+  async function fetchSym(sym) {
+    const spec = specOf(sym);
+    status(`正在下载${spec.name}的历史行情……`);
+    try {
+      const rows = await Data.loadSina(sym);
+      if (rows.length < 60) throw new Error('数据太少');
+      S.cache[sym] = rows;
+      if (S.sym === sym) showLoaded(sym);
+    } catch (e) {
+      if (S.sym === sym) status(`下载失败：${e.message}。请确认电脑能上网后点“联网下载这个品种”重试，或者导入 CSV。图表里暂时还是上一份数据。`, true);
+    }
+  }
+  async function onCSV(ev) {
+    const f = ev.target.files[0]; if (!f) return;
+    try {
+      const buf = await f.arrayBuffer();
+      let text = new TextDecoder('utf-8').decode(buf);
+      if (text.includes('�')) text = new TextDecoder('gbk').decode(buf);
+      const rows = Data.parseCSV(text);
+      S.csv = { rows, name: f.name, label: f.name.replace(/\.[^.]+$/, '') };
+      $('product').value = 'CSV'; S.sym = 'CSV'; $('fetchBtn').hidden = true;
+      setData(rows, S.csv.label);
+      status(`已导入 ${f.name}，共 ${rows.length} 个交易日（${rows[0].d} 至 ${rows[rows.length - 1].d}）。记得在第 4 步核对合约乘数和手续费。`);
+    } catch (e) {
+      status(`没能读取这个文件：${e.message}。文件需要包含日期、开盘、最高、最低、收盘五列。`, true);
+    }
+    ev.target.value = '';
+  }
+
+  // ---------- 第 2、3 步：策略与参数 ----------
+  function buildStrategies() {
+    const box = $('strategies');
+    const list = Object.entries(Engine.strategies).sort((x, y) => (y[1].mine ? 1 : 0) - (x[1].mine ? 1 : 0));
+    box.innerHTML = list.map(([k, s]) =>
+      `<label class="strat${s.mine ? ' mine' : ''}"><input type="radio" name="strat" value="${k}" ${k === S.strat ? 'checked' : ''}><b>${s.name}</b><em>${s.style}</em><span>${s.brief}</span></label>`).join('');
+    box.addEventListener('change', e => { S.strat = e.target.value; buildParams(); schedule(); });
+  }
+  function buildParams() {
+    const st = Engine.strategies[S.strat];
+    S.pv[S.strat] = S.pv[S.strat] || Object.fromEntries(st.params.map(p => [p.key, p.def]));
+    $('params').innerHTML = st.params.map(p => p.type === 'select'
+      ? `<label class="f sel">${p.label}<select data-k="${p.key}">${p.options.map(([v, t]) => `<option value="${v}" ${S.pv[S.strat][p.key] === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>`
+      : `<label class="f">${p.label}<input type="number" data-k="${p.key}" value="${S.pv[S.strat][p.key]}" min="${p.min}" max="${p.max}" step="${p.step}"></label>`).join('') + '<p class="warn" id="paramWarn" hidden></p>';
+    $('genericCtl').hidden = !!st.pyramid;
+    $('lots').disabled = !!st.pyramid;
+    $('lotsHint').hidden = !st.pyramid;
+    $('params').querySelectorAll('select').forEach(sel => sel.addEventListener('change', () => { S.pv[S.strat][sel.dataset.k] = sel.value; schedule(); }));
+    $('params').querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
+      const p = st.params.find(x => x.key === inp.dataset.k), v = parseFloat(inp.value);
+      if (isFinite(v)) S.pv[S.strat][p.key] = Math.min(p.max, Math.max(p.min, p.step >= 1 ? Math.round(v) : v));
+      schedule();
+    }));
+  }
+  function paramWarning(p) {
+    if (S.strat === 'ma' && p.fast >= p.slow) return '短均线天数应该小于长均线天数，否则信号是反的。';
+    if (S.strat === 'donchian' && p.exit >= p.entry) return '离场通道通常比入场通道短，这样亏损时能更快离场。';
+    if (S.strat === 'macd' && p.fast >= p.slow) return '快线天数应该小于慢线天数。';
+    if (S.strat === 'rsi' && !(p.t1 >= p.t2 && p.t2 >= p.t3 && p.t3 >= p.t4)) return '加仓线一般应该一笔比一笔低（例如 20、15、10、10）。';
+    if (S.strat === 'rsi' && p.exit <= p.t1) return '平仓线应该高于开仓线。';
+    return '';
+  }
+
+  // ---------- 运行 ----------
+  let timer = 0;
+  function schedule() { clearTimeout(timer); timer = setTimeout(run, 120); }
+  const num = (id, def) => { const v = parseFloat($(id).value); return isFinite(v) && v >= 0 ? v : def; };
+
+  const MIN_BARS = 20;
+  function rangeIdx(d) {
+    const from = $('from').value || d[0].d, to = $('to').value || d[d.length - 1].d;
+    let s = d.findIndex(x => x.d >= from), e = -1;
+    for (let i = d.length - 1; i >= 0; i--) if (d[i].d <= to) { e = i; break; }
+    return s < 0 || e - s < MIN_BARS ? null : [s, e];
+  }
+  function volOpts() {
+    if (!$('volOn').checked) return null;
+    return { n: Math.max(5, Math.round(num('volN', 20))), m: Math.max(20, Math.round(num('volM', 250))), k: Math.max(1, num('volK', 1.5)),
+      keep: Math.min(num('volKeep', 50), 100) / 100, mode: $('volMode').value };
+  }
+  function commonOpts() {
+    return {
+      capital: Math.max(num('capital', 100000), 1000), lots: Math.max(1, Math.round(num('lots', 1))), slipTicks: num('slip', 0),
+      stopPct: Math.min(num('stopPct', 0), 50) / 100, volCfg: volOpts(),
+    };
+  }
+  // 开启降仓时跑两遍：一遍降仓，一遍不降仓作对照
+  function simulate(st, d, p, o) {
+    const sig = st.run(d, p, $('allowShort').checked);
+    let vol = null;
+    if (o.volCfg) { const c = o.volCfg; vol = { ...Engine.volRegime(d, c.n, c.m, c.k), keep: c.keep, mode: c.mode }; }
+    const go = vv => {
+      const oo = { ...o, vol: vv };
+      const r = st.pyramid ? Engine.backtestPyramid(d, sig.rsi, oo, p) : Engine.backtest(d, sig.target, oo);
+      return { r, m: Engine.stats(d, r, o.capital, TF[S.tf].ppy) };
+    };
+    const main = go(vol);
+    return { sig, r: main.r, m: main.m, vol, base: vol ? go(null) : null };
+  }
+  function updateVolHint() {
+    const on = $('volOn').checked; $('volCtl').classList.toggle('off', !on);
+    const st = Engine.strategies[S.strat], p = S.pv[S.strat];
+    const normal = st.pyramid ? p.q1 + p.q2 + p.q3 + p.q4 : Math.max(1, Math.round(num('lots', 1)));
+    const c = { n: Math.max(5, Math.round(num('volN', 20))), m: Math.max(20, Math.round(num('volM', 250))), k: Math.max(1, num('volK', 1.5)), keep: Math.min(num('volKeep', 50), 100) / 100 };
+    const cap = Math.floor(normal * c.keep + 1e-9);
+    $('volHint').innerHTML = `“波动”是每根K线的真实波幅（最高和最低之差，算上跳空）占价格的比例，取最近 ${c.n} 根的平均；它超过过去 ${c.m} 根平均水平的 ${c.k} 倍，就算高波动期，价格图底部用橙色条标出。`
+      + `<br>按现在的设置：正常最多 <b>${normal} 手</b>，高波动期最多 <b>${cap} 手</b>${cap === 0 ? '，也就是<b>高波动期间不开新仓</b>' : ''}（向下取整）。`
+      + `${on ? '结论里会同时给出“不降仓”的对照结果。' : '勾选“开启”后生效。'}`;
+  }
+  function run() {
+    const d = S.data; if (!d.length) return;
+    const ix = rangeIdx(d);
+    if (!ix) {
+      $('verdict').innerHTML = `<p class="say">所选日期范围内的K线太少（${TF[S.tf].name}至少需要 ${MIN_BARS + 1} 根）。请在第 1 步把“从”和“到”的间隔拉大，或换成更短的K线周期。</p>`;
+      return;
+    }
+    const [s, e] = ix;
+    const st = Engine.strategies[S.strat], p = S.pv[S.strat];
+    const w = paramWarning(p); const wEl = $('paramWarn'); if (wEl) { wEl.textContent = w; wEl.hidden = !w; }
+    const o = {
+      ...commonOpts(), mult: num('mult', 10) || 10, tick: num('tick', 1) || 1,
+      feePerLot: num('feeLot', 0), feeRate: num('feeRate', 0) / 10000, marginRate: (num('margin', 10) || 10) / 100,
+      startIdx: s, endIdx: e,
+    };
+    const { sig, r, m, vol, base } = simulate(st, d, p, o);
+    S.res = { d, s, e, o, sig, r, m, st, p, vol, base };
+    S.hover = -1;
+    updateVolHint();
+    renderVerdict(); renderMetrics(); renderTrades(); drawAll();
+  }
+
+  // ---------- 结论 ----------
+  function renderVerdict() {
+    const { d, s, e, o, r, m, st, p } = S.res;
+    const chg = m.final - o.capital;
+    const notes = [];
+    const lotsText = st.pyramid ? `首笔 ${p.q1} 手、最多加到 ${p.q1 + p.q2 + p.q3 + p.q4} 手` : `每次 ${o.lots} 手`;
+    if (st.pyramid && m.nTrades === 0) notes.push(`这段时间里 ${TF[S.tf].name}的 RSI 一次都没有跌破 ${p.t1}，所以没有交易。可以试试把 RSI 周期调小（比如 6 或 9），或者换成日线。`);
+    if (r.skipped) notes.push(`有 <b>${r.skipped} 次</b>开仓或加仓因为保证金不够没有成交（按 ${wan(o.capital)} 资金、${pct(o.marginRate, false)} 保证金计算）。想看完整加仓的效果，可以加大初始资金或减少加仓手数。`);
+    if (S.sym === 'DEMO') notes.push('当前是<b>模拟行情</b>，结果没有实际意义，只用来熟悉工具。在第 1 步选一个真实品种即可下载真实数据。');
+    if (r.bust) notes.push(`账户在 ${d[r.bustIdx].d} <b>爆仓</b>了：亏损超过了全部本金。期货有杠杆，手数相对资金太多非常危险，试着减少手数或增加资金。`);
+    if (m.maxMargin > 0.5 && !r.bust) notes.push(`最多时保证金占了账户的 ${pct(m.maxMargin, false)}，仓位偏重，价格稍有反向就可能被要求追加保证金。常见做法是控制在 30% 以内。`);
+    if (m.nTrades < 15) notes.push(`一共只有 ${m.nTrades} 笔交易，样本太少，这个结果很可能有运气成分。可以拉长日期范围，或换个参数让交易更频繁一些再看。`);
+    if (chg <= 0 && !r.bust) notes.push('这套规则在这段行情里没有赚到钱。可以换个品种或策略试试，但不要为了让结果变好而无限调参数。');
+    else if (m.sharpe < 0.5 && chg > 0) notes.push('虽然赚钱，但夏普比率偏低，说明收益起伏很大、不太稳定。');
+    else if (m.sharpe >= 1 && m.nTrades >= 15) notes.push('结果看起来不错。下一步建议把时间分成前后两段，用前一段的参数原样跑后一段，确认不是参数凑出来的。');
+
+    $('verdict').innerHTML = `
+      <p class="when">${d[s].d} 至 ${d[e].d}，约 ${m.years.toFixed(1)} 年，${esc(S.label)}，${TF[S.tf].name} ${e - s + 1} 根</p>
+      <div class="big"><span class="from">${wan(o.capital)}</span><span class="arrow">→</span><span class="${cls(chg)}">${wan(m.final)}</span><span class="chg ${cls(chg)}">${pct(m.totalRet)}</span></div>
+      <p class="say">按「${st.name}」在${TF[S.tf].name}上交易，${lotsText}，一共完成 ${m.nTrades} 笔交易，账户${chg >= 0 ? '赚了' : '亏了'} <b class="${cls(chg)}">${wan(Math.abs(chg))}</b>，折合每年 <span class="${cls(m.cagr)}">${pct(m.cagr)}</span>。同期如果什么都不做、一直拿着 ${o.lots} 手多单，账户会变成 ${wan(m.benchFinal)}（<span class="${cls(m.benchRet)}">${pct(m.benchRet)}</span>）。过程中账户最多从高点回落了 <b class="down">${pct(-m.maxDD, false)}</b>${m.maxDD < 0 ? `（${d[s + m.ddPeakI].d} 到 ${d[s + m.ddTroughI].d}）` : ''}，那段时间你能不能忍住不放弃，是比收益更重要的问题。</p>
+      ${notes.length ? `<div class="notes">${notes.map(n => `<p>${n}</p>`).join('')}</div>` : ''}${volCompare()}`;
+  }
+
+  // 高波动降仓：和不降仓对比
+  function volCompare() {
+    const { s, e, r, m, vol, base } = S.res;
+    if (!vol) return '';
+    const N = e - s + 1, valid = vol.ratio.slice(s, e + 1).filter(isFinite).length, hiCnt = vol.hi.slice(s, e + 1).filter(Boolean).length;
+    const head = '<h3>高波动自动降仓：效果对比</h3>';
+    if (!valid) return `<div class="cmp">${head}<p>这段数据太短，算不出“平时的波动水平”，降仓没有生效。可以把第 5 步“和过去几根K线的平均比”调小，或者换成日线、拉长日期范围。</p></div>`;
+    const b = base.m, pp = v => (v * 100).toFixed(1);
+    const row = (name, a, z, fmt, better) => `<tr><td>${name}</td><td class="${better === 1 ? 'up' : better === -1 ? 'down' : ''}">${fmt(a)}</td><td>${fmt(z)}</td></tr>`;
+    const cmpBetter = (a, z) => Math.abs(a - z) < 1e-9 ? 0 : a > z ? 1 : -1;
+    const tbl = `<table><thead><tr><th></th><th>开启降仓</th><th>不降仓（对照）</th></tr></thead><tbody>
+      ${row('总收益', m.totalRet, b.totalRet, v => pct(v), cmpBetter(m.totalRet, b.totalRet))}
+      ${row('最大回撤', m.maxDD, b.maxDD, v => pct(v), cmpBetter(m.maxDD, b.maxDD))}
+      ${row('夏普比率', m.sharpe, b.sharpe, v => v.toFixed(2), cmpBetter(m.sharpe, b.sharpe))}
+      ${row('最高保证金占用', m.maxMargin, b.maxMargin, v => pct(v, false), cmpBetter(b.maxMargin, m.maxMargin))}
+      ${row('交易笔数', m.nTrades, b.nTrades, v => v, 0)}</tbody></table>`;
+    const acts = [];
+    if (r.volSkipped) acts.push(`${r.volSkipped} 次开仓信号因为高波动没做`);
+    if (r.volTrimmed) acts.push(`${r.volTrimmed} 次开仓或加仓少拿了手数`);
+    if (r.volCuts) acts.push(`${r.volCuts} 次把已有仓位减到上限`);
+    const dRet = m.totalRet - b.totalRet, dDD = m.maxDD - b.maxDD;   // dDD > 0 说明回撤变小了
+    let say;
+    if (Math.abs(dRet) < 1e-9 && Math.abs(dDD) < 1e-9) say = '两者结果完全一样：这段时间里，高波动期正好没碰上要开仓或持仓的时候，降仓没起作用。';
+    else if (dDD > 0.0005 && dRet >= 0) say = `回撤小了 ${pp(dDD)} 个百分点，收益还多了 ${pp(dRet)} 个百分点：在这段行情里，高波动期拿重仓是亏多赚少，降仓两头都占了便宜。`;
+    else if (dDD > 0.0005) say = `回撤小了 ${pp(dDD)} 个百分点，代价是收益少了 ${pp(-dRet)} 个百分点。这就是降仓的典型取舍：用少赚换少亏。值不值，要看你更怕哪个。`;
+    else if (dRet > 0) say = `收益多了 ${pp(dRet)} 个百分点，但最大回撤没有变小：这套策略最难熬的那段亏损不在高波动期，降仓帮不上那一段。`;
+    else say = '降仓之后收益和回撤都没有改善：这套策略在这个品种上的大亏不是出在高波动期，或者高波动期反而是它赚钱的时候（逆势策略常见），降仓等于把好机会也砍掉了。';
+    return `<div class="cmp">${head}${tbl}
+      <p>这段时间约 <b>${pct(hiCnt / N, false)}</b> 的K线处在高波动期${valid < N ? `（开头 ${N - valid} 根K线还算不出平时水平，按正常处理）` : ''}${acts.length ? `；其间 ${acts.join('，')}` : ''}。</p>
+      <p>${say}</p>
+      <p style="color:var(--muted)">只看一个品种容易被巧合骗，建议用下方“多品种一起跑”，看 30 个品种里回撤是不是<b>普遍</b>变小了。</p></div>`;
+  }
+
+  function renderMetrics() {
+    const { m } = S.res;
+    const pay = m.avgLoss < 0 ? m.avgWin / -m.avgLoss : NaN;
+    const items = [
+      ['总收益率', pct(m.totalRet), cls(m.totalRet), '最后比本金多（或少）了多少'],
+      ['年化收益率', pct(m.cagr), cls(m.cagr), '平均每年赚多少，方便和存款、理财比较'],
+      ['最大回撤', pct(m.maxDD), m.maxDD < 0 ? 'down' : '', '从最高点跌到之后最低点的最大幅度，代表最难熬的时候'],
+      ['夏普比率', m.sharpe.toFixed(2), '', '收益和波动的比值。大于 1 算比较稳，小于 0.5 偏弱'],
+      ['交易笔数', m.nTrades, '', '开仓再平仓算一笔'],
+      ['胜率', m.nTrades ? pct(m.winRate, false) : '—', '', '赚钱的交易占几成。顺势策略三四成很常见'],
+      ['盈亏比', isFinite(pay) ? pay.toFixed(2) : '—', '', '平均每笔赚的钱是平均每笔亏的钱的几倍'],
+      ['最多连续亏损', m.maxLoseStreak + ' 笔', '', '最多连着亏了几笔，最考验心态'],
+      ['交易成本', wan(m.fees + m.slipCost), '', `手续费 ${wan(m.fees)}，滑点 ${wan(m.slipCost)}`],
+      ['最高保证金占用', pct(m.maxMargin, false), m.maxMargin > 0.5 ? 'up' : '', '押在交易所的钱最多占账户几成，越高风险越大'],
+    ];
+    $('metrics').innerHTML = items.map(([h, v, c, p]) => `<div class="metric"><h3>${h}</h3><div class="v ${c}">${v}</div><p>${p}</p></div>`).join('');
+  }
+
+  function renderTrades() {
+    const { d, r } = S.res;
+    $('tradeCount').textContent = `共 ${r.trades.length} 笔。信号在K线收盘后产生，下一根K线开盘成交${S.res.st.pyramid ? '；分批加仓的一轮算一笔，开仓价是平均成本' : ''}`;
+    $('tradeBody').innerHTML = r.trades.map((t, k) => `<tr>
+      <td>${k + 1}</td><td class="dir ${t.dir > 0 ? 'up' : 'down'}">${t.dir > 0 ? '做多' : '做空'}</td><td>${t.lots}${t.layers ? `<span class="why">（${t.layers} 批）</span>` : ''}</td>
+      <td>${d[t.entryIdx].d}</td><td>${fmtP(t.entry)}</td><td>${d[t.exitIdx].d}</td><td>${fmtP(t.exit)}</td>
+      <td>${days(d[t.entryIdx].d, d[t.exitIdx].d)}</td><td class="${cls(t.pnl)}">${t.pnl > 0 ? '+' : ''}${Math.round(t.pnl).toLocaleString('zh-CN')}</td><td class="why">${t.reason}</td></tr>`).join('')
+      || '<tr><td colspan="10" style="text-align:center;font-family:var(--sans);color:var(--muted);padding:20px">这段时间里一笔交易都没有触发。可以调一调参数，或者拉长日期范围。</td></tr>';
+  }
+
+  function exportTrades() {
+    if (!S.res) return;
+    const { d, r, st } = S.res;
+    const head = '序号,方向,手数,开仓日,开仓价(均价),平仓日,平仓价,持有天数,盈亏(元),手续费(元),平仓原因';
+    const lines = r.trades.map((t, k) => [k + 1, t.dir > 0 ? '做多' : '做空', t.lots, d[t.entryIdx].d, t.entry, d[t.exitIdx].d, t.exit,
+      days(d[t.entryIdx].d, d[t.exitIdx].d), t.pnl.toFixed(2), t.fee.toFixed(2), t.reason].join(','));
+    const blob = new Blob(['﻿' + [head, ...lines].join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `交易明细_${S.label}_${TF[S.tf].name}_${st.name.replace(/[：:]/g, '-')}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  // ---------- 多品种批量回测 ----------
+  async function runBatch() {
+    const btn = $('batchBtn'), st = Engine.strategies[S.strat], p = { ...S.pv[S.strat] };
+    const list = Data.products.flatMap(g => g.items), rows = [];
+    const bs = (m, err) => { $('batchStatus').textContent = m; $('batchStatus').classList.toggle('err', !!err); };
+    btn.disabled = true; $('batchBox').hidden = false;
+    S.batchVol = !!volOpts(); renderBatchHead();
+    const range0 = `${$('from').value} 至 ${$('to').value}`;
+    for (let k = 0; k < list.length; k++) {
+      const spec = list[k];
+      bs(`正在处理第 ${k + 1} / ${list.length} 个：${spec.name}……`);
+      try { if (!S.cache[spec.sym]) S.cache[spec.sym] = await Data.loadSina(spec.sym); }
+      catch (e) { rows.push({ spec, err: '下载失败' }); renderBatch(rows); continue; }
+      const d = Engine.resample(S.cache[spec.sym], S.tf), ix = rangeIdx(d);
+      if (!ix) { rows.push({ spec, err: 'K线太少' }); renderBatch(rows); continue; }
+      const o = { ...commonOpts(), mult: spec.mult, tick: spec.tick, feePerLot: spec.feeLot, feeRate: spec.feeRate / 10000, marginRate: spec.margin / 100, startIdx: ix[0], endIdx: ix[1] };
+      const { r, m, base } = simulate(st, d, p, o);
+      rows.push({ spec, d0: d[ix[0]].d, r, m, base });
+      renderBatch(rows);
+    }
+    const ok = rows.filter(x => !x.err), win = ok.filter(x => x.m.totalRet > 0).length;
+    const avg = ok.length ? ok.reduce((t, x) => t + x.m.totalRet, 0) / ok.length : 0;
+    let volSum = '';
+    if (S.batchVol && ok.length) {
+      const ch = ok.filter(x => Math.abs(x.m.totalRet - x.base.m.totalRet) > 1e-9 || Math.abs(x.m.maxDD - x.base.m.maxDD) > 1e-9);
+      const ddB = ch.filter(x => x.m.maxDD > x.base.m.maxDD + 1e-9).length, retB = ch.filter(x => x.m.totalRet > x.base.m.totalRet + 1e-9).length;
+      const avgB = ok.reduce((t, x) => t + x.base.m.totalRet, 0) / ok.length;
+      const ddAvg = ok.reduce((t, x) => t + x.m.maxDD, 0) / ok.length, ddAvgB = ok.reduce((t, x) => t + x.base.m.maxDD, 0) / ok.length;
+      volSum = ` 高波动降仓对比：${ch.length} 个品种结果有变化，其中 ${ddB} 个最大回撤变小、${retB} 个总收益变高；平均总收益 ${pct(avg)}（不降仓 ${pct(avgB)}），平均最大回撤 ${pct(ddAvg)}（不降仓 ${pct(ddAvgB)}）。`;
+    }
+    bs(`完成：「${st.name}」${TF[S.tf].name}，${range0}。${ok.length} 个品种里有 ${win} 个赚钱，平均总收益 ${pct(avg)}。${volSum}点任意一行可以切换过去看详细图表。`);
+    btn.disabled = false;
+  }
+  function renderBatchHead() {
+    const v = S.batchVol;
+    $('batchHead').innerHTML = `<tr><th>品种</th><th>起始日</th><th>交易笔数</th><th>总收益</th><th>年化</th><th>最大回撤</th>${v ? '<th>不降仓收益</th><th>不降仓回撤</th>' : ''}<th>夏普</th><th>胜率</th><th>最高保证金占用</th><th>备注</th></tr>`;
+  }
+  function renderBatch(rows) {
+    const v = S.batchVol;
+    const ok = rows.filter(x => !x.err).sort((a, b) => b.m.totalRet - a.m.totalRet), bad = rows.filter(x => x.err);
+    $('batchBody').innerHTML = ok.map(({ spec, d0, r, m, base }) => {
+      const note = r.bust ? '<span class="down">爆仓</span>' : r.skipped ? `${r.skipped} 次资金不足未成交` : m.nTrades === 0 ? '没有触发交易' : '';
+      return `<tr data-sym="${spec.sym}" tabindex="0"><td>${spec.name}</td><td>${d0}</td><td>${m.nTrades}</td>
+        <td class="${cls(m.totalRet)}">${pct(m.totalRet)}</td><td class="${cls(m.cagr)}">${pct(m.cagr)}</td><td class="down">${pct(m.maxDD)}</td>
+        ${v ? `<td class="why">${pct(base.m.totalRet)}</td><td class="why">${pct(base.m.maxDD)}</td>` : ''}
+        <td>${m.sharpe.toFixed(2)}</td><td>${m.nTrades ? pct(m.winRate, false) : '—'}</td><td class="${m.maxMargin > 0.5 ? 'up' : ''}">${pct(m.maxMargin, false)}</td><td class="why">${note}</td></tr>`;
+    }).join('') + bad.map(({ spec, err }) => `<tr><td>${spec.name}</td><td colspan="${v ? 11 : 9}" class="why" style="text-align:left">${err}</td></tr>`).join('');
+  }
+  function pickBatchRow(ev) {
+    const tr = ev.target.closest('tr[data-sym]'); if (!tr) return;
+    if (ev.type === 'keydown' && ev.key !== 'Enter') return;
+    $('product').value = tr.dataset.sym; onProduct();
+    $('verdict').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---------- 图表 ----------
+  const PAD = { l: 6, r: 64 };
+  function prep(cv, h) {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + 'px';
+    const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+    return { ctx, w, h };
+  }
+  function niceStep(span, n) {
+    const raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+    return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag;
+  }
+  function yAxis(ctx, w, top, bot, lo, hi, fmt, n = 4) {
+    const step = niceStep(hi - lo || 1, n);
+    ctx.font = '11px Bahnschrift, "Arial Narrow", sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) {
+      const y = bot - (v - lo) / (hi - lo) * (bot - top);
+      ctx.strokeStyle = '#EDF0F3'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(PAD.l, Math.round(y) + .5); ctx.lineTo(w - PAD.r, Math.round(y) + .5); ctx.stroke();
+      ctx.fillStyle = C.muted; ctx.fillText(fmt(v), w - PAD.r + 6, y);
+    }
+  }
+  function line(ctx, arr, X, Y, color, width = 1.2, dash) {
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash || []); ctx.beginPath();
+    let pen = false;
+    arr.forEach((v, j) => { if (!isFinite(v)) { pen = false; return; } const x = X(j), y = Y(v); pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y); pen = true; });
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  function range(arrs, padFrac = 0.04) {
+    let lo = Infinity, hi = -Infinity;
+    arrs.forEach(a => a.forEach(v => { if (isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } }));
+    const p = (hi - lo || Math.abs(hi) || 1) * padFrac; return [lo - p, hi + p];
+  }
+
+  function drawAll() {
+    if (!S.res) return;
+    const { d, s, e, sig, r, m } = S.res, N = e - s + 1;
+    const hv = S.hover;
+    const X = w => j => PAD.l + j / Math.max(N - 1, 1) * (w - PAD.l - PAD.r);
+    const hoverLine = (ctx, w, top, bot) => { if (hv < 0) return; const x = Math.round(X(w)(hv)) + .5; ctx.strokeStyle = 'rgba(27,37,50,.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bot); ctx.stroke(); };
+
+    // 价格
+    {
+      const { ctx, w, h } = prep($('cPrice'), 300), top = 8, bot = h - 6, x = X(w);
+      const closes = d.slice(s, e + 1).map(b => b.c), ovs = sig.overlays.map(o => ({ ...o, part: o.data.slice(s, e + 1) }));
+      const [lo, hi] = range([closes, ...ovs.map(o => o.part)]);
+      const y = v => bot - (v - lo) / (hi - lo) * (bot - top);
+      const half = (w - PAD.l - PAD.r) / Math.max(N - 1, 1) / 2;
+      for (let j = 0; j < N;) {
+        const p = r.posArr[j]; let k = j; while (k + 1 < N && r.posArr[k + 1] === p) k++;
+        if (p !== 0) { const al = Math.min(0.08 + 0.025 * (Math.abs(p) - 1), 0.24); ctx.fillStyle = p > 0 ? `rgba(207,46,46,${al})` : `rgba(19,132,79,${al + 0.01})`; ctx.fillRect(x(j) - half, top, x(k) - x(j) + 2 * half, bot - top); }
+        j = k + 1;
+      }
+      // 高波动期：价格图底部的橙色条
+      const vol = S.res.vol;
+      if (vol) {
+        ctx.fillStyle = 'rgba(214,158,46,.85)';
+        for (let j = 0; j < N;) {
+          if (!vol.hi[s + j]) { j++; continue; }
+          let k = j; while (k + 1 < N && vol.hi[s + k + 1]) k++;
+          ctx.fillRect(x(j) - half, bot - 5, x(k) - x(j) + 2 * half, 5);
+          j = k + 1;
+        }
+      }
+      yAxis(ctx, w, top, bot, lo, hi, v => fmtP(v));
+      ovs.forEach(o => line(ctx, o.part, x, y, o.color, 1));
+      line(ctx, closes, x, y, C.ink, 1.2);
+      const sz = r.fills.length > 300 ? 3 : 4.5;
+      r.fills.forEach(f => {
+        const fx = x(f.i - s), fy = y(f.px);
+        ctx.beginPath();
+        if (f.type === 'reduce') { ctx.strokeStyle = '#B7791F'; ctx.lineWidth = 1.5; ctx.arc(fx, fy, sz * .75, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke(); return; }
+        if (f.type === 'close') { ctx.strokeStyle = C.ink; ctx.lineWidth = 1; ctx.arc(fx, fy, sz * .75, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke(); return; }
+        const dir = f.type === 'openLong' ? 1 : -1, by = fy + dir * (sz + 4);
+        ctx.moveTo(fx, by - dir * sz * 1.6); ctx.lineTo(fx - sz, by); ctx.lineTo(fx + sz, by); ctx.closePath();
+        ctx.fillStyle = dir > 0 ? C.up : C.down; ctx.fill();
+        if (S.res.st.pyramid && r.fills.length <= 240) { ctx.font = '10px Bahnschrift, "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(`+${f.lots}`, fx, by + 2); }
+      });
+      hoverLine(ctx, w, top, bot);
+      $('keysPrice').innerHTML = `<span style="--c:${C.ink}">收盘价</span>` + ovs.map(o => `<span style="--c:${o.color}">${o.label}</span>`).join('')
+        + (vol ? `<span style="--c:#D69E2E">底部橙条 = 高波动期</span>${r.fills.some(f => f.type === 'reduce') ? '<span style="--c:#B7791F">橙圈 = 高波动减仓</span>' : ''}` : '');
+    }
+    // 指标副图（RSI / MACD）
+    {
+      const pane = sig.pane; $('subWrap').hidden = !pane;
+      if (pane) {
+        const { ctx, w, h } = prep($('cSub'), 130), top = 6, bot = h - 6, x = X(w);
+        const parts = pane.series.map(sr => sr.data.slice(s, e + 1));
+        const [lo, hi] = pane.lo !== undefined ? [pane.lo, pane.hi] : range([...parts, pane.levels.map(l => l.v)], 0.08);
+        const y = v => bot - (v - lo) / (hi - lo) * (bot - top);
+        yAxis(ctx, w, top, bot, lo, hi, v => (Math.abs(v) < 1e-9 ? 0 : v).toFixed(Math.abs(hi - lo) < 10 ? 1 : 0), 4);
+        ctx.font = '10px Bahnschrift, "Arial Narrow", sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+        let lastLy = -99;
+        [...pane.levels].sort((p1, p2) => p2.v - p1.v).forEach(l => {
+          const ly = Math.round(y(l.v)) + .5; ctx.strokeStyle = 'rgba(94,107,122,.55)'; ctx.setLineDash([4, 3]);
+          ctx.beginPath(); ctx.moveTo(PAD.l, ly); ctx.lineTo(w - PAD.r, ly); ctx.stroke(); ctx.setLineDash([]);
+          if (ly - lastLy >= 11) { ctx.fillStyle = C.muted; ctx.fillText(l.label, PAD.l + 2, ly - 1); lastLy = ly; }
+        });
+        parts.forEach((pt, k) => line(ctx, pt, x, y, pane.series[k].color, 1.1));
+        hoverLine(ctx, w, top, bot);
+        $('subLabel').textContent = pane.label;
+        $('keysSub').innerHTML = pane.series.map(sr => `<span style="--c:${sr.color}">${sr.label}</span>`).join('') + '<span style="--c:rgba(94,107,122,.55)">虚线是策略用到的界线</span>';
+      }
+    }
+    // 权益
+    {
+      const { ctx, w, h } = prep($('cEq'), 180), top = 8, bot = h - 6, x = X(w);
+      const baseEq = S.res.base ? S.res.base.r.equity : null;
+      const [lo, hi] = range([r.equity, r.bench, [S.res.o.capital], ...(baseEq ? [baseEq] : [])]);
+      const y = v => bot - (v - lo) / (hi - lo) * (bot - top);
+      yAxis(ctx, w, top, bot, lo, hi, v => wan(v).replace(' ', ''));
+      ctx.strokeStyle = C.rule; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(PAD.l, y(S.res.o.capital)); ctx.lineTo(w - PAD.r, y(S.res.o.capital)); ctx.stroke(); ctx.setLineDash([]);
+      line(ctx, r.bench, x, y, C.bench, 1.2, [4, 3]);
+      if (baseEq) line(ctx, baseEq, x, y, '#D69E2E', 1.3);
+      line(ctx, r.equity, x, y, C.blue, 1.8);
+      $('keysEq').innerHTML = `<span style="--c:${C.blue}">按策略交易${baseEq ? '（开启降仓）' : ''}</span>${baseEq ? '<span style="--c:#D69E2E">同样策略、不降仓</span>' : ''}<span style="--c:${C.bench}">一直拿着多单（对照）</span>`;
+      hoverLine(ctx, w, top, bot);
+    }
+    // 回撤 + 时间轴
+    {
+      const { ctx, w, h } = prep($('cDD'), 130), top = 6, bot = h - 24, x = X(w);
+      const lo = Math.min(m.maxDD * 1.08, -0.01), hi = 0;
+      const y = v => bot - (v - lo) / (hi - lo) * (bot - top);
+      yAxis(ctx, w, top, bot, lo, hi, v => (Math.abs(v) < 1e-9 ? 0 : v * 100).toFixed(0) + '%', 3);
+      ctx.beginPath(); ctx.moveTo(x(0), y(0)); m.dd.forEach((v, j) => ctx.lineTo(x(j), y(v))); ctx.lineTo(x(N - 1), y(0)); ctx.closePath();
+      ctx.fillStyle = 'rgba(19,132,79,.22)'; ctx.fill();
+      line(ctx, m.dd, x, y, C.down, 1);
+      // 时间刻度
+      const span = days(d[s].d, d[e].d), key = span > 900 ? (b => b.d.slice(0, 4)) : (b => b.d.slice(0, 7));
+      ctx.fillStyle = C.muted; ctx.font = '11px Bahnschrift, "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      let lastX = -999, prev = key(d[s]);
+      for (let j = 1; j < N; j++) {
+        const k = key(d[s + j]); if (k === prev) continue; prev = k;
+        const px = x(j); if (px - lastX < 56 || px > w - PAD.r - 20) continue;
+        ctx.strokeStyle = C.rule; ctx.beginPath(); ctx.moveTo(px + .5, bot); ctx.lineTo(px + .5, bot + 4); ctx.stroke();
+        ctx.fillText(k, px, bot + 6); lastX = px;
+      }
+      hoverLine(ctx, w, top, bot);
+    }
+  }
+
+  function onHover(ev) {
+    if (!S.res) return;
+    const cv = $('cPrice'), rect = cv.getBoundingClientRect(), w = rect.width;
+    const { d, s, e, r, m, o } = S.res, N = e - s + 1;
+    const px = ev.clientX - rect.left;
+    if (px < PAD.l || px > w - PAD.r) { onLeave(); return; }
+    const j = Math.max(0, Math.min(N - 1, Math.round((px - PAD.l) / (w - PAD.l - PAD.r) * (N - 1))));
+    if (j !== S.hover) { S.hover = j; drawAll(); }
+    const b = d[s + j], p = r.posArr[j], pane = S.res.sig.pane;
+    const tip = $('tip'), wrap = $('chartwrap').getBoundingClientRect();
+    tip.innerHTML = `<div class="num">${b.d}</div>收盘 <span class="num">${fmtP(b.c)}</span><br>持仓 ${p > 0 ? `多 ${p} 手` : p < 0 ? `空 ${-p} 手` : '空仓'}<br>权益 <span class="num">${wan(r.equity[j])}</span><br>回撤 <span class="num">${pct(m.dd[j])}</span>${S.res.vol && isFinite(S.res.vol.ratio[s + j]) ? `<br>波动是平时的 <span class="num">${S.res.vol.ratio[s + j].toFixed(2)}</span> 倍${S.res.vol.hi[s + j] ? '（高波动）' : ''}` : ''}${pane ? pane.series.map(x => `<br>${x.label} <span class="num">${isFinite(x.data[s + j]) ? x.data[s + j].toFixed(2) : '—'}</span>`).join('') : ''}`;
+    tip.style.display = 'block';
+    const tx = ev.clientX - wrap.left, ty = ev.clientY - wrap.top;
+    tip.style.left = (tx > wrap.width / 2 ? tx - tip.offsetWidth - 14 : tx + 14) + 'px';
+    tip.style.top = Math.max(0, ty - 40) + 'px';
+  }
+  function onLeave() { $('tip').style.display = 'none'; if (S.hover !== -1) { S.hover = -1; drawAll(); } }
+
+  // ---------- 启动 ----------
+  buildProducts(); buildStrategies(); buildParams();
+  $('product').addEventListener('change', onProduct);
+  $('tf').addEventListener('change', applyTf);
+  $('batchBtn').addEventListener('click', runBatch);
+  $('batchBody').addEventListener('click', pickBatchRow);
+  $('batchBody').addEventListener('keydown', pickBatchRow);
+  $('fetchBtn').addEventListener('click', () => { delete S.cache[S.sym]; fetchSym(S.sym); });
+  $('csvFile').addEventListener('change', onCSV);
+  ['allowShort', 'stopPct', 'capital', 'lots', 'mult', 'tick', 'slip', 'feeLot', 'feeRate', 'margin', 'volOn', 'volN', 'volM', 'volK', 'volKeep'].forEach(id => $(id).addEventListener('input', schedule));
+  $('volMode').addEventListener('change', schedule);
+  updateVolHint();
+  ['from', 'to'].forEach(id => $(id).addEventListener('change', schedule));
+  $('exportBtn').addEventListener('click', exportTrades);
+  $('chartwrap').addEventListener('pointermove', onHover);
+  $('chartwrap').addEventListener('pointerleave', onLeave);
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawAll, 100); });
+  onProduct();
+})();
+
+</script>
+</body>
+</html>
